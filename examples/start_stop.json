@@ -1,19 +1,17 @@
 {
   "nodes": [
-    {"id": "x_start", "type": "DigitalInput", "params": {"value": false}, "position": {"x": 60, "y": 80}, "label": "X0 Start"},
+    {"id": "x_start", "type": "DigitalInput", "params": {"value": false}, "position": {"x": 60, "y": 80},  "label": "X0 Start"},
     {"id": "x_stop",  "type": "DigitalInput", "params": {"value": false}, "position": {"x": 60, "y": 200}, "label": "X1 Stop"},
-    {"id": "not1",    "type": "NOT",           "params": {},               "position": {"x": 240, "y": 200}, "label": ""},
-    {"id": "sr1",     "type": "SR",            "params": {},               "position": {"x": 400, "y": 130}, "label": "Latch"},
-    {"id": "y_motor", "type": "DigitalOutput", "params": {},               "position": {"x": 580, "y": 130}, "label": "Y0 Motor"},
-    {"id": "ton1",    "type": "TON",           "params": {"PT": 3000},     "position": {"x": 580, "y": 280}, "label": "Run Timer"},
-    {"id": "y_done",  "type": "DigitalOutput", "params": {},               "position": {"x": 800, "y": 280}, "label": "Y1 Done"}
+    {"id": "sr1",     "type": "SR",            "params": {},               "position": {"x": 280, "y": 130}, "label": "Latch"},
+    {"id": "y_motor", "type": "DigitalOutput", "params": {},               "position": {"x": 460, "y": 130}, "label": "Y0 Motor"},
+    {"id": "ton1",    "type": "TON",           "params": {"PT": 3000},     "position": {"x": 460, "y": 280}, "label": "Run Timer"},
+    {"id": "y_done",  "type": "DigitalOutput", "params": {},               "position": {"x": 680, "y": 280}, "label": "Y1 Done"}
   ],
   "edges": [
-    {"id": "e1", "source": "x_start", "source_handle": "OUT",  "target": "sr1",     "target_handle": "S"},
-    {"id": "e2", "source": "x_stop",  "source_handle": "OUT",  "target": "not1",    "target_handle": "IN"},
-    {"id": "e3", "source": "not1",    "source_handle": "OUT",  "target": "sr1",     "target_handle": "R"},
-    {"id": "e4", "source": "sr1",     "source_handle": "Q",    "target": "y_motor", "target_handle": "IN"},
-    {"id": "e5", "source": "sr1",     "source_handle": "Q",    "target": "ton1",    "target_handle": "IN"},
-    {"id": "e6", "source": "ton1",    "source_handle": "Q",    "target": "y_done",  "target_handle": "IN"}
+    {"id": "e1", "source": "x_start", "source_handle": "OUT", "target": "sr1",     "target_handle": "S"},
+    {"id": "e2", "source": "x_stop",  "source_handle": "OUT", "target": "sr1",     "target_handle": "R"},
+    {"id": "e3", "source": "sr1",     "source_handle": "Q",   "target": "y_motor", "target_handle": "IN"},
+    {"id": "e4", "source": "sr1",     "source_handle": "Q",   "target": "ton1",    "target_handle": "IN"},
+    {"id": "e5", "source": "ton1",    "source_handle": "Q",   "target": "y_done",  "target_handle": "IN"}
   ]
 }
