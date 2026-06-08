@@ -1,3 +1,7 @@
+import { useState } from 'react';
+import { usePLCStore } from '../../store/plcStore';
+import { CustomBlockEditor } from '../CustomBlockEditor';
+
 const PALETTE_ITEMS = [
   { type: 'DigitalInput',  label: 'Input',   color: '#0ea5e9', desc: 'Digital input signal' },
   { type: 'DigitalOutput', label: 'Output',  color: '#f97316', desc: 'Digital output signal' },
@@ -12,11 +16,50 @@ const PALETTE_ITEMS = [
   { type: 'COMP',          label: 'COMP',    color: '#ec4899', desc: 'Numeric comparator' },
 ];
 
+function PaletteChip({
+  type, label, color, desc, onDragStart,
+}: { type: string; label: string; color: string; desc: string; onDragStart: (e: React.DragEvent, type: string) => void }) {
+  return (
+    <div
+      draggable
+      onDragStart={(e) => onDragStart(e, type)}
+      title={desc}
+      style={{
+        padding: '3px 10px',
+        background: '#0f172a',
+        border: `1px solid ${color}40`,
+        borderRadius: 5,
+        fontSize: 11,
+        color,
+        cursor: 'grab',
+        userSelect: 'none',
+        transition: 'border-color 0.15s, background 0.15s',
+        fontWeight: 600,
+      }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLDivElement).style.background = `${color}20`;
+        (e.currentTarget as HTMLDivElement).style.borderColor = color;
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLDivElement).style.background = '#0f172a';
+        (e.currentTarget as HTMLDivElement).style.borderColor = `${color}40`;
+      }}
+    >
+      {label}
+    </div>
+  );
+}
+
 export function BlockPalette() {
+  const catalog = usePLCStore((s) => s.catalog);
+  const [editorOpen, setEditorOpen] = useState(false);
+
   const onDragStart = (e: React.DragEvent, type: string) => {
     e.dataTransfer.setData('blockType', type);
     e.dataTransfer.effectAllowed = 'copy';
   };
+
+  const customEntries = Object.values(catalog).filter((c) => c.is_custom);
 
   return (
     <div
@@ -34,35 +77,47 @@ export function BlockPalette() {
         Blocks
       </span>
       {PALETTE_ITEMS.map((item) => (
-        <div
-          key={item.type}
-          draggable
-          onDragStart={(e) => onDragStart(e, item.type)}
-          title={item.desc}
-          style={{
-            padding: '3px 10px',
-            background: '#0f172a',
-            border: `1px solid ${item.color}40`,
-            borderRadius: 5,
-            fontSize: 11,
-            color: item.color,
-            cursor: 'grab',
-            userSelect: 'none',
-            transition: 'border-color 0.15s, background 0.15s',
-            fontWeight: 600,
-          }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLDivElement).style.background = `${item.color}20`;
-            (e.currentTarget as HTMLDivElement).style.borderColor = item.color;
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLDivElement).style.background = '#0f172a';
-            (e.currentTarget as HTMLDivElement).style.borderColor = `${item.color}40`;
-          }}
-        >
-          {item.label}
-        </div>
+        <PaletteChip key={item.type} {...item} onDragStart={onDragStart} />
       ))}
+
+      {customEntries.length > 0 && (
+        <>
+          <span style={{ width: 1, height: 16, background: '#334155', margin: '0 4px' }} />
+          <span style={{ fontSize: 9, color: '#a78bfa', textTransform: 'uppercase', letterSpacing: 1 }}>
+            🐍 Custom
+          </span>
+          {customEntries.map((c) => (
+            <PaletteChip
+              key={c.type}
+              type={c.type}
+              label={c.label || c.type}
+              color={c.icon_color || '#a78bfa'}
+              desc={`${c.description || ''}${c.created_by === 'ai' ? ' (AI生成)' : ''}`}
+              onDragStart={onDragStart}
+            />
+          ))}
+        </>
+      )}
+
+      <button
+        onClick={() => setEditorOpen(true)}
+        title="Pythonコードでブロックを自作する"
+        style={{
+          marginLeft: 'auto',
+          background: 'transparent',
+          border: '1px dashed #7c3aed80',
+          borderRadius: 5,
+          color: '#a78bfa',
+          fontSize: 11,
+          fontWeight: 600,
+          cursor: 'pointer',
+          padding: '3px 10px',
+        }}
+      >
+        + コードでブロックを作る
+      </button>
+
+      {editorOpen && <CustomBlockEditor onClose={() => setEditorOpen(false)} />}
     </div>
   );
 }

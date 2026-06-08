@@ -12,9 +12,13 @@ from plc.models import (
     AIChatRequest,
     AIChatResponse,
     PendingOperation,
+    CustomBlockDefinition,
+    CustomBlockTestRequest,
 )
 from plc.nodes import NODE_CATALOG
 from plc.runtime import runtime
+from plc import custom_blocks
+from plc.sandbox import sandbox_pool
 from api.ws import manager
 
 router = APIRouter()
@@ -48,7 +52,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
 @router.get("/api/catalog")
 def get_catalog():
-    return NODE_CATALOG
+    return {**NODE_CATALOG, **custom_blocks.custom_block_catalog()}
 
 
 # ── Program CRUD ─────────────────────────────────────────────────────────
@@ -74,7 +78,7 @@ class AddNodeRequest(BaseModel):
 
 @router.post("/api/program/nodes")
 def add_node(req: AddNodeRequest):
-    if req.type not in NODE_CATALOG:
+    if req.type not in NODE_CATALOG and req.type not in custom_blocks.CUSTOM_BLOCKS:
         raise HTTPException(400, f"Unknown node type: {req.type}")
     program = runtime.get_program()
     node_id = req.id or f"{req.type.lower()}_{uuid.uuid4().hex[:6]}"
@@ -217,6 +221,71 @@ def get_events(from_ts: float = 0.0, to_ts: float | None = None):
     return [e.model_dump() for e in runtime.get_events(from_ts, to_ts)]
 
 
+# ── Custom code blocks (Python, process-isolated) ─────────────────────────
+
+@router.get("/api/blocks/custom")
+def list_custom_blocks():
+    return [b.model_dump() for b in custom_blocks.CUSTOM_BLOCKS.values()]
+
+
+@router.get("/api/blocks/custom/{block_id}")
+def get_custom_block(block_id: str):
+    definition = custom_blocks.get_custom_block(block_id)
+    if definition is None:
+        raise HTTPException(404, "Custom block not found")
+    return definition.model_dump()
+
+
+class SaveCustomBlockRequest(BaseModel):
+    id: str | None = None
+    name: str
+    description: str = ""
+    code: str
+    input_ports: list[dict[str, Any]] = []
+    output_ports: list[dict[str, Any]] = []
+    params_schema: dict[str, Any] = {}
+    icon_color: str = "#8b5cf6"
+    created_by: str = "human"
+
+
+@router.post("/api/blocks/custom")
+def save_custom_block(req: SaveCustomBlockRequest):
+    block_id = req.id or f"custom_{req.name.lower().replace(' ', '_')}_{uuid.uuid4().hex[:6]}"
+    definition = CustomBlockDefinition(
+        id=block_id,
+        name=req.name,
+        description=req.description,
+        code=req.code,
+        input_ports=req.input_ports,
+        output_ports=req.output_ports,
+        params_schema=req.params_schema,
+        icon_color=req.icon_color,
+        created_by=req.created_by,
+    )
+    custom_blocks.save_custom_block(definition)
+    return definition.model_dump()
+
+
+@router.delete("/api/blocks/custom/{block_id}")
+def delete_custom_block(block_id: str):
+    custom_blocks.delete_custom_block(block_id)
+    return {"ok": True}
+
+
+@router.post("/api/blocks/custom/test")
+async def test_custom_block(req: CustomBlockTestRequest):
+    """Run user code once in the sandbox and report outputs/errors/timing."""
+    outputs, new_state, error, exec_ms = await sandbox_pool.run(
+        req.code, req.inputs, req.state, req.params
+    )
+    return {
+        "outputs": outputs,
+        "new_state": new_state,
+        "error": error,
+        "exec_ms": round(exec_ms, 3),
+    }
+
+
 # ── AI Human-in-the-Loop ──────────────────────────────────────────────────
 
 @router.post("/api/ai/pending/apply")
@@ -269,6 +338,22 @@ def apply_pending():
             for node in program.nodes:
                 if node.id == node_id:
                     node.params.update(op.payload.get("params", {}))
+            applied.append(op.op)
+
+        elif op.op == "create_custom_block":
+            p = op.payload
+            definition = CustomBlockDefinition(
+                id=p["id"],
+                name=p["name"],
+                description=p.get("description", ""),
+                code=p["code"],
+                input_ports=p.get("input_ports", []),
+                output_ports=p.get("output_ports", []),
+                params_schema=p.get("params_schema", {}),
+                icon_color=p.get("icon_color", "#8b5cf6"),
+                created_by="ai",
+            )
+            custom_blocks.save_custom_block(definition)
             applied.append(op.op)
 
     runtime.load_program(program)

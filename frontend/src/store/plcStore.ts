@@ -47,6 +47,9 @@ interface PLCState {
   // IO values (for DigitalInput nodes)
   ioValues: Record<string, boolean>;
 
+  // Per-cycle status of custom (Python) code blocks: {nodeId: {exec_ms, error}}
+  customBlockStatus: Record<string, { exec_ms: number | null; error: string | null }>;
+
   // AI chat
   chatHistory: ChatEntry[];
   aiLoading: boolean;
@@ -117,6 +120,7 @@ export const usePLCStore = create<PLCState>((set, get) => ({
   pendingOps: [],
   catalog: {},
   ioValues: {},
+  customBlockStatus: {},
   chatHistory: [],
   aiLoading: false,
   wsConnected: false,
@@ -328,6 +332,7 @@ export const usePLCStore = create<PLCState>((set, get) => ({
         runtimeState: runtime,
         metrics: msg.metrics,
         pendingOps: msg.pending_ops || s.pendingOps,
+        customBlockStatus: msg.custom_blocks || s.customBlockStatus,
       };
     });
   },

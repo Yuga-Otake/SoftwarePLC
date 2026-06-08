@@ -9,6 +9,30 @@ export interface NodeCatalogEntry {
   type: string;
   input_ports: PortDef[];
   output_ports: PortDef[];
+  label?: string;
+  description?: string;
+  icon_color?: string;
+  is_custom?: boolean;
+  created_by?: 'human' | 'ai';
+}
+
+export interface CustomBlockDefinition {
+  id: string;
+  name: string;
+  description: string;
+  code: string;
+  input_ports: PortDef[];
+  output_ports: PortDef[];
+  params_schema: Record<string, unknown>;
+  icon_color: string;
+  created_by: 'human' | 'ai';
+}
+
+export interface CustomBlockTestResult {
+  outputs: Record<string, unknown>;
+  new_state: Record<string, unknown>;
+  error: string | null;
+  exec_ms: number;
 }
 
 export interface NodeDef {
@@ -46,8 +70,13 @@ export interface ScanMetrics {
 }
 
 export interface PendingOp {
-  op: 'add_node' | 'add_edge' | 'delete_node' | 'set_parameter';
+  op: 'add_node' | 'add_edge' | 'delete_node' | 'set_parameter' | 'create_custom_block';
   payload: Record<string, unknown>;
+}
+
+export interface CustomBlockStatus {
+  exec_ms: number | null;
+  error: string | null;
 }
 
 export interface WSMessage {
@@ -56,6 +85,7 @@ export interface WSMessage {
   metrics: ScanMetrics;
   changes: Record<string, Record<string, unknown>>;
   pending_ops: PendingOp[];
+  custom_blocks?: Record<string, CustomBlockStatus>;
 }
 
 export interface ToolCall {

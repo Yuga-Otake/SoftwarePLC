@@ -2,6 +2,8 @@ from collections import defaultdict, deque
 from typing import Any
 from .models import ProgramGraph
 from .nodes import EXECUTORS
+from .custom_blocks import CUSTOM_BLOCKS
+from .sandbox import sandbox_pool
 
 
 class PLCGraph:
@@ -45,12 +47,15 @@ class PLCGraph:
 
         return result
 
-    def execute(
+    async def execute(
         self,
         node_states: dict[str, dict],
         io_values: dict[str, Any],
     ) -> tuple[dict[str, dict[str, Any]], dict[str, dict]]:
         """Execute all nodes in topological order.
+
+        Built-in blocks run synchronously (fast path); custom Python code
+        blocks are awaited in an isolated subprocess via the sandbox pool.
 
         Returns (current_outputs, new_states).
         """
@@ -63,8 +68,11 @@ class PLCGraph:
                 continue
 
             executor = EXECUTORS.get(node.type)
+            custom_def = None
             if executor is None:
-                continue
+                custom_def = CUSTOM_BLOCKS.get(node.type)
+                if custom_def is None:
+                    continue
 
             # Resolve inputs from upstream outputs
             inputs: dict[str, Any] = {}
@@ -78,8 +86,23 @@ class PLCGraph:
             if node.type == "DigitalInput":
                 params["value"] = io_values.get(node_id, params.get("value", False))
 
-            state = node_states.get(node_id, executor.default_state())
-            outputs, new_state = executor.execute(inputs, state, params)
+            if executor is not None:
+                state = node_states.get(node_id, executor.default_state())
+                outputs, new_state = executor.execute(inputs, state, params)
+            else:
+                state = node_states.get(node_id, {})
+                outputs, new_state, error, exec_ms = await sandbox_pool.run(
+                    custom_def.code, inputs, state, params
+                )
+                new_state = dict(new_state)
+                if error:
+                    # Keep last known-good outputs so the canvas doesn't flicker to blank
+                    outputs = state.get("_last_outputs") or {p.name: None for p in custom_def.output_ports}
+                    new_state["_error"] = error
+                else:
+                    new_state.pop("_error", None)
+                new_state["_last_outputs"] = outputs
+                new_state["_exec_ms"] = round(exec_ms, 3)
 
             current_outputs[node_id] = outputs
             new_states[node_id] = new_state

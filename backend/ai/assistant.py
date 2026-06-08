@@ -7,6 +7,8 @@ from typing import Any
 
 from plc.models import AIChatResponse, PendingOperation
 from plc.nodes import NODE_CATALOG
+from plc import custom_blocks
+from plc.sandbox import sandbox_pool
 from plc.runtime import runtime
 
 try:
@@ -88,6 +90,71 @@ _TOOLS = [
             "required": ["node_id", "params"],
         },
     },
+    {
+        "name": "create_custom_block",
+        "description": (
+            "Create a new reusable block whose logic is written in Python. Use this when "
+            "the desired behavior is awkward to express by wiring together existing blocks "
+            "(e.g. unit conversion, string/number processing, custom math). The code runs "
+            "in an isolated sandboxed process each scan cycle, with the exact same contract "
+            "as a built-in block: a top-level function "
+            "`execute(inputs: dict, state: dict, params: dict) -> tuple[dict, dict]` "
+            "that returns (outputs, new_state). Only these stdlib modules may be imported: "
+            "math, statistics, random, re, json, datetime, time, collections, itertools, "
+            "functools, string. No file/network/process access is available. "
+            "Always call test_custom_block afterwards to verify it works before explaining it."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Human-readable block name"},
+                "description": {"type": "string", "description": "What the block does"},
+                "code": {
+                    "type": "string",
+                    "description": "Python source defining execute(inputs, state, params) -> (outputs, new_state)",
+                },
+                "input_ports": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string"},
+                            "data_type": {"type": "string", "enum": ["bool", "int", "float", "str"]},
+                            "description": {"type": "string"},
+                        },
+                        "required": ["name", "data_type"],
+                    },
+                },
+                "output_ports": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string"},
+                            "data_type": {"type": "string", "enum": ["bool", "int", "float", "str"]},
+                            "description": {"type": "string"},
+                        },
+                        "required": ["name", "data_type"],
+                    },
+                },
+                "params_schema": {"type": "object", "description": "Map of param name -> default value"},
+            },
+            "required": ["name", "code", "input_ports", "output_ports"],
+        },
+    },
+    {
+        "name": "test_custom_block",
+        "description": "Run a custom block's code once in the sandbox with sample inputs to verify it works before creating it",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "code": {"type": "string"},
+                "inputs": {"type": "object", "description": "Sample input values, e.g. {\"IN\": true}"},
+                "params": {"type": "object", "description": "Sample parameter values"},
+            },
+            "required": ["code"],
+        },
+    },
 ]
 
 _SYSTEM_PROMPT = """You are an expert PLC (Programmable Logic Controller) programmer and assistant.
@@ -112,6 +179,15 @@ When designing programs:
 3. Use TON for on-delay, TOFF for off-delay
 4. Use CTU for counting events
 5. Position blocks at reasonable coordinates (x: 100-1200, y: 50-600)
+
+You can also create new block types written in Python with `create_custom_block`,
+for logic that's awkward to express by wiring built-in blocks together (unit
+conversion, string/number processing, custom formulas, etc). The code is executed
+in an isolated sandboxed subprocess every scan cycle using the exact same contract
+as built-in blocks: a function `execute(inputs, state, params) -> (outputs, new_state)`.
+Always verify the code with `test_custom_block` before finalizing it — this keeps the
+process transparent and trustworthy. Once created, the block appears in the palette
+and can be wired in like any other block.
 
 Always use the tools to inspect the current program before making changes.
 After making changes, briefly explain what you added and how it works."""
@@ -166,7 +242,38 @@ def _execute_tool(tool_name: str, tool_input: dict) -> Any:
         runtime.pending_ops.append(op)
         return {"ok": True}
 
+    if tool_name == "create_custom_block":
+        block_id = f"custom_{tool_input['name'].lower().replace(' ', '_')}_{uuid.uuid4().hex[:6]}"
+        op = PendingOperation(
+            op="create_custom_block",
+            payload={
+                "id": block_id,
+                "name": tool_input["name"],
+                "description": tool_input.get("description", ""),
+                "code": tool_input["code"],
+                "input_ports": tool_input.get("input_ports", []),
+                "output_ports": tool_input.get("output_ports", []),
+                "params_schema": tool_input.get("params_schema", {}),
+            },
+        )
+        runtime.pending_ops.append(op)
+        return {"ok": True, "id": block_id}
+
     return {"error": f"Unknown tool: {tool_name}"}
+
+
+async def _execute_tool_async(tool_name: str, tool_input: dict) -> Any:
+    """Async tools (those that need to await the sandboxed process pool)."""
+    if tool_name == "test_custom_block":
+        outputs, new_state, error, exec_ms = await sandbox_pool.run(
+            tool_input["code"],
+            tool_input.get("inputs", {}),
+            {},
+            tool_input.get("params", {}),
+        )
+        return {"outputs": outputs, "new_state": new_state, "error": error, "exec_ms": round(exec_ms, 3)}
+
+    return _execute_tool(tool_name, tool_input)
 
 
 async def run_assistant(message: str, history: list[dict]) -> AIChatResponse:
@@ -208,7 +315,7 @@ async def run_assistant(message: str, history: list[dict]) -> AIChatResponse:
         # Execute tools and record results
         tool_results = []
         for tu in tool_uses:
-            result = _execute_tool(tu.name, tu.input)
+            result = await _execute_tool_async(tu.name, tu.input)
             tool_call_log.append({
                 "name": tu.name,
                 "input": tu.input,

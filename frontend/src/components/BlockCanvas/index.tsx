@@ -7,9 +7,10 @@ import ReactFlow, {
   useReactFlow,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { usePLCStore } from '../../store/plcStore';
-import { nodeTypes } from '../NodeTypes';
+import { nodeTypes as builtinNodeTypes } from '../NodeTypes';
+import { CustomCodeNode } from '../NodeTypes/CustomCodeNode';
 import { PLCEdge } from './CustomEdge';
 
 const edgeTypes = { plcEdge: PLCEdge };
@@ -17,6 +18,17 @@ const edgeTypes = { plcEdge: PLCEdge };
 function CanvasInner() {
   const nodes = usePLCStore((s) => s.nodes);
   const edges = usePLCStore((s) => s.edges);
+  const catalog = usePLCStore((s) => s.catalog);
+
+  // Custom code blocks have dynamic type IDs (e.g. "custom_debounce_ab12cd"),
+  // so they're registered for CustomCodeNode rendering based on the catalog.
+  const nodeTypes = useMemo(() => {
+    const customTypes = Object.values(catalog)
+      .filter((c) => c.is_custom)
+      .reduce((acc, c) => ({ ...acc, [c.type]: CustomCodeNode }), {} as Record<string, typeof CustomCodeNode>);
+    return { ...builtinNodeTypes, ...customTypes };
+  }, [catalog]);
+
   const onNodesChange = usePLCStore((s) => s.onNodesChange);
   const onEdgesChange = usePLCStore((s) => s.onEdgesChange);
   const onConnect = usePLCStore((s) => s.onConnect);

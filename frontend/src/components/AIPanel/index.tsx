@@ -1,5 +1,34 @@
 import { useState, useRef, useEffect } from 'react';
 import { usePLCStore, ChatEntry } from '../../store/plcStore';
+import type { PendingOp } from '../../types';
+
+function PendingOpSummary({ op }: { op: PendingOp }) {
+  let text: string;
+  switch (op.op) {
+    case 'add_node':
+      text = `+ ブロック追加: ${op.payload.type} (${op.payload.id})`;
+      break;
+    case 'add_edge':
+      text = `→ 接続追加: ${op.payload.source}.${op.payload.source_handle} → ${op.payload.target}.${op.payload.target_handle}`;
+      break;
+    case 'delete_node':
+      text = `✕ ブロック削除: ${op.payload.node_id}`;
+      break;
+    case 'set_parameter':
+      text = `⚙ パラメータ変更: ${op.payload.node_id} ${JSON.stringify(op.payload.params)}`;
+      break;
+    case 'create_custom_block':
+      text = `🐍 新しいPythonブロックを作成: 「${op.payload.name}」 — コードの中身を確認してから承認してください`;
+      break;
+    default:
+      text = op.op;
+  }
+  return (
+    <div style={{ fontSize: 10, color: '#cbd5e1', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
+      {text}
+    </div>
+  );
+}
 
 function ToolCallBadge({ name, result }: { name: string; result: unknown }) {
   const ok = (result as Record<string, unknown>)?.ok !== false;
@@ -152,6 +181,11 @@ export function AIPanel() {
         >
           <div style={{ fontSize: 11, color: '#f59e0b', marginBottom: 6 }}>
             ⚠ {pendingOps.length} pending change{pendingOps.length > 1 ? 's' : ''} — review on canvas
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 8 }}>
+            {pendingOps.map((op, i) => (
+              <PendingOpSummary key={i} op={op} />
+            ))}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button

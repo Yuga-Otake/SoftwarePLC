@@ -57,6 +57,31 @@ class PendingOperation(BaseModel):
     payload: dict[str, Any]
 
 
+class CustomBlockPort(BaseModel):
+    name: str
+    data_type: str  # "bool" | "int" | "float" | "str"
+    description: str = ""
+
+
+class CustomBlockDefinition(BaseModel):
+    id: str
+    name: str
+    description: str = ""
+    code: str
+    input_ports: list[CustomBlockPort] = []
+    output_ports: list[CustomBlockPort] = []
+    params_schema: dict[str, Any] = {}
+    icon_color: str = "#8b5cf6"
+    created_by: str = "human"  # "human" | "ai"
+
+
+class CustomBlockTestRequest(BaseModel):
+    code: str
+    inputs: dict[str, Any] = {}
+    state: dict[str, Any] = {}
+    params: dict[str, Any] = {}
+
+
 class AIChatRequest(BaseModel):
     message: str
     history: list[dict[str, Any]] = []

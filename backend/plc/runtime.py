@@ -113,7 +113,7 @@ class PLCRuntime:
         t0 = time.monotonic()
         now = time.time()
 
-        new_outputs, new_states = self._graph.execute(
+        new_outputs, new_states = await self._graph.execute(
             self._node_states, self._io_values
         )
 
@@ -148,6 +148,14 @@ class PLCRuntime:
                 )
             )
 
+        # Surface custom code block execution stats (transparency: which
+        # blocks are slow / erroring, for the performance panel)
+        custom_block_status = {
+            node_id: {"exec_ms": st.get("_exec_ms"), "error": st.get("_error")}
+            for node_id, st in new_states.items()
+            if "_exec_ms" in st
+        }
+
         self._scan_index += 1
         cycle_time = (time.monotonic() - t0) * 1000
 
@@ -179,6 +187,7 @@ class PLCRuntime:
                         "metrics": metrics.model_dump(),
                         "changes": changes,
                         "pending_ops": [op.model_dump() for op in self.pending_ops],
+                        "custom_blocks": custom_block_status,
                     }
                 )
             except Exception:

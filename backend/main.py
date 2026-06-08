@@ -10,6 +10,8 @@ from api.routes import router
 from api.ws import manager
 from plc.models import ProgramGraph
 from plc.runtime import runtime
+from plc.custom_blocks import load_custom_blocks
+from plc.sandbox import sandbox_pool
 
 
 def load_example():
@@ -23,10 +25,13 @@ def load_example():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     runtime.broadcast_callback = manager.broadcast
+    load_custom_blocks()
+    sandbox_pool.start()
     load_example()
     await runtime.start()
     yield
     await runtime.stop()
+    sandbox_pool.stop()
 
 
 app = FastAPI(title="Software PLC", lifespan=lifespan)
