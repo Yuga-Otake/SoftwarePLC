@@ -9,12 +9,14 @@ import { PerformanceBar } from './components/PerformanceBar';
 export default function App() {
   const loadProgram = usePLCStore((s) => s.loadProgram);
   const loadCatalog = usePLCStore((s) => s.loadCatalog);
+  const loadIoValues = usePLCStore((s) => s.loadIoValues);
   const connectWS = usePLCStore((s) => s.connectWS);
 
   useEffect(() => {
     connectWS();
     loadCatalog();
     loadProgram();
+    loadIoValues();
   }, []);
 
   return (

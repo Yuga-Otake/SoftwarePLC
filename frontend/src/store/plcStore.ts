@@ -50,6 +50,9 @@ interface PLCState {
   // Per-cycle status of custom (Python) code blocks: {nodeId: {exec_ms, error}}
   customBlockStatus: Record<string, { exec_ms: number | null; error: string | null }>;
 
+  // Runtime config (scan interval, history depth)
+  runtimeConfig: { scan_interval_ms: number; history_seconds: number } | null;
+
   // AI chat
   chatHistory: ChatEntry[];
   aiLoading: boolean;
@@ -65,6 +68,9 @@ interface PLCState {
   updateNodeParams: (nodeId: string, params: Record<string, unknown>) => Promise<void>;
   persistNodePosition: (nodeId: string, position: { x: number; y: number }) => void;
   toggleIO: (nodeId: string, current: boolean) => Promise<void>;
+  loadIoValues: () => Promise<void>;
+  deleteCustomBlock: (blockId: string) => Promise<void>;
+  updateRuntimeConfig: (scanIntervalMs: number) => Promise<void>;
   sendAIMessage: (message: string) => Promise<void>;
   applyPending: () => Promise<void>;
   rejectPending: () => Promise<void>;
@@ -121,6 +127,7 @@ export const usePLCStore = create<PLCState>((set, get) => ({
   catalog: {},
   ioValues: {},
   customBlockStatus: {},
+  runtimeConfig: null,
   chatHistory: [],
   aiLoading: false,
   wsConnected: false,
@@ -251,6 +258,25 @@ export const usePLCStore = create<PLCState>((set, get) => ({
       body: JSON.stringify({ value: newVal }),
     });
     set((s) => ({ ioValues: { ...s.ioValues, [nodeId]: newVal } }));
+  },
+
+  loadIoValues: async () => {
+    const res = await fetch(`${API}/api/io`);
+    if (res.ok) set({ ioValues: await res.json() });
+  },
+
+  deleteCustomBlock: async (blockId) => {
+    await fetch(`${API}/api/blocks/custom/${blockId}`, { method: 'DELETE' });
+    await get().loadCatalog();
+  },
+
+  updateRuntimeConfig: async (scanIntervalMs) => {
+    const res = await fetch(`${API}/api/runtime/config`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scan_interval_ms: scanIntervalMs }),
+    });
+    if (res.ok) set({ runtimeConfig: await res.json() });
   },
 
   sendAIMessage: async (message) => {

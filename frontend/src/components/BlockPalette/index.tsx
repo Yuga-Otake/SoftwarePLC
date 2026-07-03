@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { usePLCStore } from '../../store/plcStore';
 import { CustomBlockEditor } from '../CustomBlockEditor';
+import type { NodeCatalogEntry } from '../../types';
 
 const PALETTE_ITEMS = [
   { type: 'DigitalInput',  label: 'Input',   color: '#0ea5e9', desc: 'Digital input signal' },
@@ -50,8 +51,76 @@ function PaletteChip({
   );
 }
 
+function CustomChip({
+  entry,
+  onDragStart,
+  onDelete,
+}: {
+  entry: NodeCatalogEntry;
+  onDragStart: (e: React.DragEvent, type: string) => void;
+  onDelete: (type: string) => void;
+}) {
+  const color = entry.icon_color || '#a78bfa';
+  const [hover, setHover] = useState(false);
+  return (
+    <div
+      style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+    >
+      <div
+        draggable
+        onDragStart={(e) => onDragStart(e, entry.type)}
+        title={`${entry.description || ''}${entry.created_by === 'ai' ? ' (AI生成)' : ''}`}
+        style={{
+          padding: '3px 22px 3px 10px',
+          background: hover ? `${color}20` : '#0f172a',
+          border: `1px solid ${hover ? color : color + '40'}`,
+          borderRadius: 5,
+          fontSize: 11,
+          color,
+          cursor: 'grab',
+          userSelect: 'none',
+          fontWeight: 600,
+          transition: 'border-color 0.15s, background 0.15s',
+        }}
+      >
+        {entry.label || entry.type}
+      </div>
+      {hover && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(entry.type); }}
+          title="カスタムブロックを削除"
+          style={{
+            position: 'absolute',
+            right: 3,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            width: 14,
+            height: 14,
+            background: '#ef444430',
+            border: '1px solid #ef4444',
+            borderRadius: 3,
+            color: '#fca5a5',
+            cursor: 'pointer',
+            fontSize: 9,
+            lineHeight: 1,
+            padding: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          ✕
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function BlockPalette() {
   const catalog = usePLCStore((s) => s.catalog);
+  const deleteCustomBlock = usePLCStore((s) => s.deleteCustomBlock);
   const [editorOpen, setEditorOpen] = useState(false);
 
   const onDragStart = (e: React.DragEvent, type: string) => {
@@ -87,13 +156,11 @@ export function BlockPalette() {
             🐍 Custom
           </span>
           {customEntries.map((c) => (
-            <PaletteChip
+            <CustomChip
               key={c.type}
-              type={c.type}
-              label={c.label || c.type}
-              color={c.icon_color || '#a78bfa'}
-              desc={`${c.description || ''}${c.created_by === 'ai' ? ' (AI生成)' : ''}`}
+              entry={c}
               onDragStart={onDragStart}
+              onDelete={deleteCustomBlock}
             />
           ))}
         </>
