@@ -1,0 +1,190 @@
+{
+  "name": "conveyor_exam",
+  "title": "コンベア搬送検定機",
+  "description": "examples/start_stop.json (X0起動→SRラッチ→Y0モーター) をコンベア駆動に流用した検定機。起動PBでコンベアが搬送を開始し、ジグ上のネジがセンサに到達するとセンサがONになり、その信号がPLCの停止入力(X1)へ配線されているためモーターが自動停止します。ジグの搬送距離・センサ反応・自動停止までの一連動作を検定員の手順書どおりに自動実行し、合否判定します。reset_jigでジグを原点(0mm)へ戻して再試行できます。",
+  "target_program": "start_stop",
+  "devices": [
+    {
+      "id": "pb_start",
+      "type": "pushbutton",
+      "label": "起動PB (X0)",
+      "signal": "x_start",
+      "mode": "momentary",
+      "position": {
+        "x": 60,
+        "y": 60
+      }
+    },
+    {
+      "id": "sw_hold",
+      "type": "switch",
+      "label": "運転保持 (X1、ONで運転継続)",
+      "signal": "x_stop",
+      "position": {
+        "x": 60,
+        "y": 160
+      }
+    },
+    {
+      "id": "motor1",
+      "type": "motor",
+      "label": "M1 コンベアモーター (Y0)",
+      "signal": "y_motor.OUT",
+      "position": {
+        "x": 60,
+        "y": 260
+      }
+    },
+    {
+      "id": "conv1",
+      "type": "conveyor",
+      "label": "搬送コンベア",
+      "drive_signal": "y_motor.OUT",
+      "reverse_signal": null,
+      "length_mm": 1000,
+      "speed_mm_s": 200,
+      "width": 480,
+      "position": {
+        "x": 260,
+        "y": 80
+      }
+    },
+    {
+      "id": "jig1",
+      "type": "jig",
+      "label": "ジグA",
+      "conveyor": "conv1",
+      "home_mm": 0,
+      "size_mm": 120,
+      "at_end": "stop",
+      "features": [
+        {
+          "id": "screw1",
+          "type": "screw",
+          "offset_mm": 100,
+          "label": "ネジ"
+        }
+      ]
+    },
+    {
+      "id": "sens1",
+      "type": "position_sensor",
+      "label": "ネジ検出LS (X2)",
+      "conveyor": "conv1",
+      "at_mm": 800,
+      "window_mm": 12,
+      "detect": "feature",
+      "sensor_style": "limit_switch",
+      "signal": "x_screw_det",
+      "position": {
+        "x": 260,
+        "y": 200
+      }
+    },
+    {
+      "id": "lamp_det",
+      "type": "lamp",
+      "label": "ネジ検出表示",
+      "color": "amber",
+      "signal": "x_screw_det",
+      "position": {
+        "x": 780,
+        "y": 60
+      }
+    },
+    {
+      "id": "lamp_done",
+      "type": "lamp",
+      "label": "運転準備完了 (Y1)",
+      "color": "green",
+      "signal": "y_done.OUT",
+      "position": {
+        "x": 780,
+        "y": 160
+      }
+    }
+  ],
+  "feedback_rules": [
+    {
+      "watch": "x_screw_det",
+      "equals": true,
+      "delay_ms": 0,
+      "set_input": "x_stop",
+      "value": false,
+      "revert_on_clear": false,
+      "note": "ネジ検出センサー(X2)がONになったら運転保持入力(X1)をFalseへ落とす。examples/start_stop.jsonのSRラッチはR=NOT(X1)を継続的に受けるため(motor_exam.jsonと同じ配線上の注意、docs/SIMULATION.md参照)、X1=Falseになった瞬間にR=Trueとなりラッチがリセットされてモーターが自動停止する。revert_on_clear=falseなのでジグがセンサから離れた後もX1はFalseのまま(再起動には運転保持スイッチとreset_jigの両方が必要)"
+    }
+  ],
+  "exam": {
+    "title": "コンベア搬送検定",
+    "description": "起動PB→コンベア搬送→ジグ上のネジがセンサ(800mm地点)へ到達→センサONでモーター自動停止、の一連動作を検定します。ジグはconv1の先頭(0mm)からhome_mm=0でスタートし、ネジのオフセットは100mmのため、ネジの初期位置は100mm。センサは800mm地点にあるため、搬送距離は800-100=700mm。速度200mm/sなので到達までの理論値は3.5秒(3500ms)。reset_jigで原点復帰し、再試行できることも確認します。配線上の注意: このプログラムのSRラッチはR入力をNOT(X1)から継続的に受けるため(motor_exam.jsonと同じ)、起動PBを離す前に運転保持スイッチ(X1)をONにしてラッチを保持する必要があります。",
+    "steps": [
+      {
+        "op": "expect",
+        "signal": "x_screw_det",
+        "value": false,
+        "within_ms": 300,
+        "note": "① 初期状態でネジ検出センサーがOFFであること(ジグ原点)"
+      },
+      {
+        "op": "set",
+        "signal": "x_start",
+        "value": true,
+        "note": "② 起動PB (X0) を押す"
+      },
+      {
+        "op": "expect",
+        "signal": "y_motor.OUT",
+        "value": true,
+        "within_ms": 300,
+        "note": "③ モーター (Y0) が300ms以内に起動し、コンベアが搬送を開始すること"
+      },
+      {
+        "op": "set",
+        "signal": "x_stop",
+        "value": true,
+        "note": "④ ラッチ保持のため運転保持スイッチ(X1)を先にONにする(このプログラムのR入力はNOT(X1)のため)"
+      },
+      {
+        "op": "set",
+        "signal": "x_start",
+        "value": false,
+        "note": "⑤ 起動PBを離す(ラッチは④により保持されたまま、モーターは運転を継続)"
+      },
+      {
+        "op": "expect",
+        "signal": "y_motor.OUT",
+        "value": true,
+        "within_ms": 300,
+        "note": "⑥ モーターが起動状態を維持していること"
+      },
+      {
+        "op": "expect",
+        "signal": "x_screw_det",
+        "value": true,
+        "after_ms": 3000,
+        "within_ms": 4500,
+        "note": "⑦ 搬送開始からおよそ3.5秒後(理論値3500ms、許容3000〜4500ms)にジグ上のネジがセンサ(800mm)へ到達し、検出ONになること(早すぎ・遅すぎともに不合格)"
+      },
+      {
+        "op": "expect",
+        "signal": "y_motor.OUT",
+        "value": false,
+        "within_ms": 300,
+        "note": "⑧ センサ検出信号が運転保持入力(X1)を落とし、ラッチがリセットされてモーターが300ms以内に自動停止すること(センサ入力が動作に反映されることの実証)"
+      },
+      {
+        "op": "reset_jig",
+        "jig": "jig1",
+        "note": "⑨ ジグを原点(0mm)へ戻し、再試行できる状態にする"
+      },
+      {
+        "op": "expect",
+        "signal": "x_screw_det",
+        "value": false,
+        "within_ms": 300,
+        "note": "⑩ reset_jig後、ネジ検出センサーが再びOFFへ戻ること(原点復帰の確認)"
+      }
+    ]
+  }
+}

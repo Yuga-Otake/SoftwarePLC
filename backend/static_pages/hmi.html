@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Software PLC - HMI</title>
+<style>
+  :root {
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #0a0f1a;
+    color: #e2e8f0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+  #topbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: #111827;
+    border-bottom: 1px solid #1e293b;
+    flex-wrap: wrap;
+  }
+  #topbar .brand { font-size: 12px; font-weight: 800; color: #6366f1; letter-spacing: .5px; }
+  #screenSelect {
+    background: #0f172a; border: 1px solid #334155; border-radius: 5px;
+    color: #e2e8f0; padding: 6px 10px; font-size: 13px; flex: 1; min-width: 120px;
+  }
+  #connDot {
+    width: 9px; height: 9px; border-radius: 50%; background: #ef4444; flex-shrink: 0;
+    box-shadow: 0 0 6px #ef444480;
+  }
+  #connDot.ok { background: #22c55e; box-shadow: 0 0 6px #22c55e80; }
+  #connLabel { font-size: 11px; color: #64748b; }
+  #canvas {
+    position: relative;
+    width: 100%;
+    height: calc(100vh - 46px);
+    overflow: auto;
+    touch-action: manipulation;
+  }
+  #inner {
+    position: relative;
+    min-width: 100%;
+    min-height: 100%;
+  }
+  .empty-msg {
+    padding: 40px 20px;
+    color: #475569;
+    font-size: 13px;
+    text-align: center;
+  }
+  .widget {
+    position: absolute;
+    box-sizing: border-box;
+  }
+  .w-btn {
+    width: 100%; height: 100%;
+    border-radius: 8px;
+    border: 1.5px solid #475569;
+    background: #0f172a;
+    color: #94a3b8;
+    font-size: 13px;
+    font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+  }
+  .w-btn.active {
+    color: var(--accent, #22c55e);
+    border-color: var(--accent, #22c55e);
+    background: color-mix(in srgb, var(--accent, #22c55e) 18%, transparent);
+  }
+  .w-lamp {
+    width: 100%; height: 100%;
+    border-radius: 50%;
+    border: 2px solid #475569;
+    background: #1e293b;
+    display: flex; align-items: center; justify-content: center;
+    text-align: center;
+    font-size: 10px; font-weight: 700; color: #64748b;
+    padding: 4px;
+  }
+  .w-lamp.on {
+    border-color: var(--accent, #22c55e);
+    background: var(--accent, #22c55e);
+    color: #0f172a;
+    box-shadow: 0 0 14px var(--accent, #22c55e);
+  }
+  .w-panel {
+    width: 100%; height: 100%;
+    background: #0f172a;
+    border: 1.5px solid #334155;
+    border-radius: 8px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 6px;
+    gap: 4px;
+  }
+  .w-panel .lbl { font-size: 9px; color: #64748b; }
+  .w-panel .val { font-size: 16px; color: #e2e8f0; font-weight: 700; }
+  .w-gauge-bar {
+    width: 100%; height: 8px; background: #1e293b; border-radius: 4px; overflow: hidden;
+  }
+  .w-gauge-fill { height: 100%; background: var(--accent, #22c55e); transition: width .2s; }
+
+  @media (max-width: 480px) {
+    #topbar { padding: 8px 10px; }
+    .brand { display: none; }
+  }
+</style>
+</head>
+<body>
+<div id="topbar">
+  <span class="brand">Software PLC</span>
+  <select id="screenSelect"><option value="">画面を選択…</option></select>
+  <span id="connDot"></span>
+  <span id="connLabel">未接続</span>
+</div>
+<div id="canvas"><div id="inner"><div class="empty-msg">画面を選択してください</div></div></div>
+
+<script>
+(function () {
+  "use strict";
+
+  var innerEl = document.getElementById("inner");
+  var selectEl = document.getElementById("screenSelect");
+  var connDot = document.getElementById("connDot");
+  var connLabel = document.getElementById("connLabel");
+
+  var runtimeState = {};
+  var ioValues = {};
+  var currentScreen = null;
+  var widgetEls = {}; // widget id -> {el, widget}
+
+  function signalValue(signal) {
+    if (!signal) return undefined;
+    var parts = signal.split(".");
+    var nodeId = parts[0], port = parts[1];
+    var byNode = runtimeState[nodeId];
+    if (byNode && Object.prototype.hasOwnProperty.call(byNode, port)) return byNode[port];
+    return undefined;
+  }
+
+  function writeIo(signal, value) {
+    if (!signal) return;
+    var nodeId = signal.split(".")[0];
+    fetch("/api/io/" + encodeURIComponent(nodeId), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ value: value }),
+    }).catch(function () {});
+  }
+
+  function boolVal(widget) {
+    var raw = signalValue(widget.signal);
+    if (typeof raw === "boolean") return raw;
+    var nodeId = widget.signal ? widget.signal.split(".")[0] : null;
+    if (nodeId && Object.prototype.hasOwnProperty.call(ioValues, nodeId)) return !!ioValues[nodeId];
+    return false;
+  }
+
+  function numVal(widget) {
+    var raw = signalValue(widget.signal);
+    return typeof raw === "number" ? raw : 0;
+  }
+
+  function buildWidgetEl(widget) {
+    var box = document.createElement("div");
+    box.className = "widget";
+    box.style.left = widget.x + "px";
+    box.style.top = widget.y + "px";
+    box.style.width = widget.w + "px";
+    box.style.height = widget.h + "px";
+    var accent = widget.color || "#22c55e";
+    box.style.setProperty("--accent", accent);
+
+    if (widget.type === "button_momentary" || widget.type === "button_alternate") {
+      var btn = document.createElement("div");
+      btn.className = "w-btn";
+      btn.textContent = widget.label || (widget.type === "button_momentary" ? "Momentary" : "Alternate");
+      box.appendChild(btn);
+
+      if (widget.type === "button_momentary") {
+        var pressHandler = function (e) {
+          e.preventDefault();
+          btn.classList.add("active");
+          writeIo(widget.signal, true);
+        };
+        var releaseHandler = function (e) {
+          if (e) e.preventDefault();
+          btn.classList.remove("active");
+          writeIo(widget.signal, false);
+        };
+        btn.addEventListener("pointerdown", pressHandler);
+        btn.addEventListener("pointerup", releaseHandler);
+        btn.addEventListener("pointerleave", releaseHandler);
+        btn.addEventListener("pointercancel", releaseHandler);
+      } else {
+        btn.addEventListener("click", function () {
+          writeIo(widget.signal, !boolVal(widget));
+        });
+      }
+    } else if (widget.type === "lamp") {
+      var lamp = document.createElement("div");
+      lamp.className = "w-lamp";
+      lamp.textContent = widget.label || "";
+      box.appendChild(lamp);
+    } else if (widget.type === "number") {
+      var panel = document.createElement("div");
+      panel.className = "w-panel";
+      var lbl = document.createElement("span");
+      lbl.className = "lbl";
+      lbl.textContent = widget.label || "";
+      var val = document.createElement("span");
+      val.className = "val";
+      val.textContent = "--";
+      panel.appendChild(lbl);
+      panel.appendChild(val);
+      box.appendChild(panel);
+    } else if (widget.type === "gauge") {
+      var gpanel = document.createElement("div");
+      gpanel.className = "w-panel";
+      gpanel.style.justifyContent = "center";
+      var glbl = document.createElement("span");
+      glbl.className = "lbl";
+      glbl.textContent = widget.label || "";
+      var bar = document.createElement("div");
+      bar.className = "w-gauge-bar";
+      var fill = document.createElement("div");
+      fill.className = "w-gauge-fill";
+      fill.style.width = "0%";
+      bar.appendChild(fill);
+      gpanel.appendChild(glbl);
+      gpanel.appendChild(bar);
+      box.appendChild(gpanel);
+    }
+
+    return box;
+  }
+
+  function updateWidgetEl(entry) {
+    var widget = entry.widget;
+    var el = entry.el;
+    if (widget.type === "button_momentary") {
+      // Momentary reflects local press state only, not remote value; nothing
+      // to sync from runtime state.
+      return;
+    }
+    if (widget.type === "button_alternate") {
+      var active = boolVal(widget);
+      var btn = el.querySelector(".w-btn");
+      if (btn) btn.classList.toggle("active", active);
+      return;
+    }
+    if (widget.type === "lamp") {
+      var lamp = el.querySelector(".w-lamp");
+      if (lamp) lamp.classList.toggle("on", boolVal(widget));
+      return;
+    }
+    if (widget.type === "number") {
+      var valEl = el.querySelector(".val");
+      if (valEl) {
+        var raw = signalValue(widget.signal);
+        if (typeof raw === "number") valEl.textContent = String(raw);
+        else if (typeof raw === "boolean") valEl.textContent = String(raw);
+        else valEl.textContent = "--";
+      }
+      return;
+    }
+    if (widget.type === "gauge") {
+      var min = (widget.options && widget.options.min) || 0;
+      var max = (widget.options && widget.options.max) || 100;
+      var v = numVal(widget);
+      var pct = Math.max(0, Math.min(1, (v - min) / ((max - min) || 1)));
+      var fillEl = el.querySelector(".w-gauge-fill");
+      if (fillEl) fillEl.style.width = (pct * 100) + "%";
+      var lblEl = el.querySelector(".lbl");
+      if (lblEl) lblEl.textContent = (widget.label || "") + " (" + v.toFixed(1) + ")";
+    }
+  }
+
+  function renderScreen(screen) {
+    innerEl.innerHTML = "";
+    widgetEls = {};
+    var widgets = (screen && screen.widgets) || [];
+    if (!Array.isArray(widgets)) {
+      // Defensive: a hand-edited/corrupted screen file could have a
+      // non-array `widgets` (e.g. a string or object). Treat it as empty
+      // rather than throwing out of `.forEach` below and white-screening
+      // the standalone HMI page (BUG-003, see docs/QA_LOG.md).
+      widgets = [];
+    }
+    if (widgets.length === 0) {
+      var msg = document.createElement("div");
+      msg.className = "empty-msg";
+      msg.textContent = "このHMI画面にはウィジェットがありません。";
+      innerEl.appendChild(msg);
+      return;
+    }
+    widgets.forEach(function (widget) {
+      var el = buildWidgetEl(widget);
+      innerEl.appendChild(el);
+      widgetEls[widget.id] = { el: el, widget: widget };
+      updateWidgetEl(widgetEls[widget.id]);
+    });
+  }
+
+  function refreshAllWidgets() {
+    Object.keys(widgetEls).forEach(function (id) {
+      updateWidgetEl(widgetEls[id]);
+    });
+  }
+
+  function loadScreen(name) {
+    if (!name) {
+      currentScreen = null;
+      renderScreen(null);
+      return;
+    }
+    fetch("/api/hmi/screens/" + encodeURIComponent(name))
+      .then(function (r) { if (!r.ok) throw new Error("load failed"); return r.json(); })
+      .then(function (data) {
+        currentScreen = data;
+        renderScreen(data);
+      })
+      .catch(function () {
+        renderScreen(null);
+      });
+  }
+
+  function loadScreenList() {
+    fetch("/api/hmi/screens")
+      .then(function (r) { return r.json(); })
+      .then(function (names) {
+        selectEl.innerHTML = '<option value="">画面を選択…</option>';
+        names.forEach(function (n) {
+          var opt = document.createElement("option");
+          opt.value = n;
+          opt.textContent = n;
+          selectEl.appendChild(opt);
+        });
+        if (names.length > 0) {
+          selectEl.value = names[0];
+          loadScreen(names[0]);
+        }
+      })
+      .catch(function () {});
+  }
+
+  selectEl.addEventListener("change", function () {
+    loadScreen(selectEl.value);
+  });
+
+  function loadIoValues() {
+    fetch("/api/io")
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        ioValues = data || {};
+        refreshAllWidgets();
+      })
+      .catch(function () {});
+  }
+
+  // ── WebSocket live updates ──────────────────────────────────────────
+  var ws = null;
+  function connectWs() {
+    var proto = window.location.protocol === "https:" ? "wss" : "ws";
+    ws = new WebSocket(proto + "://" + window.location.host + "/ws");
+    ws.onopen = function () {
+      connDot.classList.add("ok");
+      connLabel.textContent = "接続中";
+    };
+    ws.onclose = function () {
+      connDot.classList.remove("ok");
+      connLabel.textContent = "切断 (再接続中…)";
+      ws = null;
+      setTimeout(connectWs, 2000);
+    };
+    ws.onerror = function () {};
+    ws.onmessage = function (ev) {
+      try {
+        var msg = JSON.parse(ev.data);
+        if (msg.type === "state_update" && msg.runtime) {
+          runtimeState = msg.runtime;
+          refreshAllWidgets();
+        }
+      } catch (e) {}
+    };
+  }
+
+  loadScreenList();
+  loadIoValues();
+  connectWs();
+})();
+</script>
+</body>
+</html>

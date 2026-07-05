@@ -1,0 +1,312 @@
+import { useState, useRef, useEffect } from 'react';
+import { usePLCStore, ChatEntry } from '../../store/plcStore';
+import type { PendingOp } from '../../types';
+
+function PendingOpSummary({ op }: { op: PendingOp }) {
+  let text: string;
+  switch (op.op) {
+    case 'add_node':
+      text = `+ ブロック追加: ${op.payload.type} (${op.payload.id})`;
+      break;
+    case 'add_edge':
+      text = `→ 接続追加: ${op.payload.source}.${op.payload.source_handle} → ${op.payload.target}.${op.payload.target_handle}`;
+      break;
+    case 'delete_node':
+      text = `✕ ブロック削除: ${op.payload.node_id}`;
+      break;
+    case 'set_parameter':
+      text = `⚙ パラメータ変更: ${op.payload.node_id} ${JSON.stringify(op.payload.params)}`;
+      break;
+    case 'create_custom_block':
+      text = `🐍 新しいPythonブロックを作成: 「${op.payload.name}」 — コードの中身を確認してから承認してください`;
+      break;
+    default:
+      text = op.op;
+  }
+  return (
+    <div style={{ fontSize: 10, color: '#cbd5e1', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
+      {text}
+    </div>
+  );
+}
+
+function ToolCallBadge({ name, result }: { name: string; result: unknown }) {
+  const ok = (result as Record<string, unknown>)?.ok !== false;
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 3,
+        background: ok ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+        border: `1px solid ${ok ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
+        borderRadius: 4,
+        padding: '1px 6px',
+        fontSize: 10,
+        color: ok ? '#86efac' : '#fca5a5',
+        fontFamily: 'monospace',
+      }}
+    >
+      {ok ? '✓' : '✗'} {name}
+    </span>
+  );
+}
+
+function Message({ entry }: { entry: ChatEntry }) {
+  const isUser = entry.role === 'user';
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: isUser ? 'flex-end' : 'flex-start',
+        marginBottom: 8,
+      }}
+    >
+      {entry.toolCalls && entry.toolCalls.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginBottom: 4 }}>
+          {entry.toolCalls.map((tc, i) => (
+            <ToolCallBadge key={i} name={tc.name} result={tc.result} />
+          ))}
+        </div>
+      )}
+      <div
+        style={{
+          maxWidth: '90%',
+          background: isUser ? '#1d4ed8' : '#1e293b',
+          border: `1px solid ${isUser ? '#2563eb' : '#334155'}`,
+          borderRadius: isUser ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
+          padding: '8px 12px',
+          fontSize: 12,
+          color: '#e2e8f0',
+          lineHeight: 1.5,
+          whiteSpace: 'pre-wrap',
+        }}
+      >
+        {entry.content}
+      </div>
+    </div>
+  );
+}
+
+function ProviderBadge({ status }: { status: { available: boolean; provider: string | null } | null }) {
+  if (!status) return null;
+  const label = status.provider === 'anthropic' ? 'Anthropic' : status.provider === 'gemini' ? 'Gemini' : '未設定';
+  const color = status.available ? '#22c55e' : '#64748b';
+  return (
+    <span
+      title={status.available ? `${label} で応答` : 'AI未設定 (ANTHROPIC_API_KEY または GEMINI_API_KEY を設定)'}
+      style={{
+        fontSize: 9.5,
+        color,
+        border: `1px solid ${color}60`,
+        borderRadius: 999,
+        padding: '1px 7px',
+        fontWeight: 700,
+        letterSpacing: 0.3,
+        marginLeft: 'auto',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+      }}
+    >
+      <span style={{ width: 5, height: 5, borderRadius: 3, background: color, display: 'inline-block' }} />
+      {label}
+    </span>
+  );
+}
+
+export function AIPanel() {
+  const chatHistory = usePLCStore((s) => s.chatHistory);
+  const aiLoading = usePLCStore((s) => s.aiLoading);
+  const pendingOps = usePLCStore((s) => s.pendingOps);
+  const sendAIMessage = usePLCStore((s) => s.sendAIMessage);
+  const applyPending = usePLCStore((s) => s.applyPending);
+  const rejectPending = usePLCStore((s) => s.rejectPending);
+  const aiStatus = usePLCStore((s) => s.aiStatus);
+  const loadAiStatus = usePLCStore((s) => s.loadAiStatus);
+
+  const [input, setInput] = useState('');
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    loadAiStatus();
+  }, []);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatHistory, aiLoading]);
+
+  const handleSend = () => {
+    const msg = input.trim();
+    if (!msg || aiLoading) return;
+    setInput('');
+    sendAIMessage(msg);
+  };
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        background: '#0f172a',
+        borderLeft: '1px solid #1e293b',
+      }}
+    >
+      {/* Header */}
+      <div
+        style={{
+          padding: '10px 14px',
+          borderBottom: '1px solid #1e293b',
+          fontSize: 12,
+          fontWeight: 700,
+          color: '#94a3b8',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+        }}
+      >
+        <span style={{ color: '#6366f1' }}>◈</span>
+        AI Assistant
+        <ProviderBadge status={aiStatus} />
+      </div>
+
+      {/* Messages */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px' }}>
+        {chatHistory.length === 0 && (
+          <div style={{ color: '#475569', fontSize: 12, textAlign: 'center', marginTop: 24 }}>
+            <div style={{ marginBottom: 8 }}>Ask me to build automation logic.</div>
+            <div style={{ fontSize: 11, color: '#334155' }}>
+              e.g. "When X1 and X2 are both ON, start Y0 after 3 seconds"
+            </div>
+          </div>
+        )}
+        {chatHistory.map((entry, i) => (
+          <Message key={i} entry={entry} />
+        ))}
+        {aiLoading && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#64748b', fontSize: 12 }}>
+            <span
+              style={{
+                display: 'inline-block',
+                width: 8,
+                height: 8,
+                borderRadius: 4,
+                background: '#6366f1',
+                animation: 'pulse 1s infinite',
+              }}
+            />
+            Thinking...
+          </div>
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Pending ops approval */}
+      {pendingOps.length > 0 && (
+        <div
+          style={{
+            borderTop: '1px solid #f59e0b40',
+            background: 'rgba(245,158,11,0.08)',
+            padding: '8px 14px',
+          }}
+        >
+          <div style={{ fontSize: 11, color: '#f59e0b', marginBottom: 6 }}>
+            ⚠ {pendingOps.length} pending change{pendingOps.length > 1 ? 's' : ''} — review on canvas
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 8 }}>
+            {pendingOps.map((op, i) => (
+              <PendingOpSummary key={i} op={op} />
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={applyPending}
+              style={{
+                flex: 1,
+                background: '#22c55e20',
+                border: '1px solid #22c55e',
+                borderRadius: 6,
+                padding: '5px',
+                color: '#22c55e',
+                cursor: 'pointer',
+                fontSize: 11,
+                fontWeight: 600,
+              }}
+            >
+              ✓ Apply All
+            </button>
+            <button
+              onClick={rejectPending}
+              style={{
+                flex: 1,
+                background: '#ef444420',
+                border: '1px solid #ef4444',
+                borderRadius: 6,
+                padding: '5px',
+                color: '#ef4444',
+                cursor: 'pointer',
+                fontSize: 11,
+                fontWeight: 600,
+              }}
+            >
+              ✗ Reject
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Input */}
+      <div
+        style={{
+          borderTop: '1px solid #1e293b',
+          padding: '10px 14px',
+          display: 'flex',
+          gap: 8,
+        }}
+      >
+        <textarea
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleSend();
+            }
+          }}
+          placeholder="Describe the logic you need... (Enter to send)"
+          rows={2}
+          style={{
+            flex: 1,
+            background: '#1e293b',
+            border: '1px solid #334155',
+            borderRadius: 6,
+            color: '#e2e8f0',
+            padding: '6px 10px',
+            fontSize: 12,
+            resize: 'none',
+            outline: 'none',
+            fontFamily: 'inherit',
+          }}
+        />
+        <button
+          onClick={handleSend}
+          disabled={aiLoading || !input.trim()}
+          style={{
+            background: aiLoading || !input.trim() ? '#1e293b' : '#4f46e5',
+            border: '1px solid #4f46e5',
+            borderRadius: 6,
+            color: aiLoading || !input.trim() ? '#475569' : '#fff',
+            cursor: aiLoading || !input.trim() ? 'default' : 'pointer',
+            padding: '0 12px',
+            fontSize: 12,
+            fontWeight: 600,
+          }}
+        >
+          Send
+        </button>
+      </div>
+    </div>
+  );
+}

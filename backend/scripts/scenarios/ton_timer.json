@@ -1,0 +1,22 @@
+{
+  "_comment": "Verifies the TON (on-delay) timer feeding y_done (Y1) in examples/start_stop.json: PT=3000ms. Motor must stay latched (x_start held True, matching the SR wiring quirk documented in start_stop_basic.json) for the timer to keep accumulating elapsed time. To release the latch at the end we drop x_start back to False while x_stop is still False (its default), which drives R=True (via NOT) and resets the SR -- see stop_priority.json for the S/R dominance details.",
+  "program": "../../../examples/start_stop.json",
+  "scan_interval_ms": 100,
+  "steps": [
+    {"expect": {"y_motor.OUT": false, "y_done.OUT": false}},
+
+    {"set": {"x_start": true}},
+    {"advance_ms": 100},
+    {"expect": {"y_motor.OUT": true, "y_done.OUT": false}},
+
+    {"advance_ms": 2800},
+    {"expect": {"y_done.OUT": false}},
+
+    {"advance_ms": 200},
+    {"expect": {"y_done.OUT": true}},
+
+    {"set": {"x_start": false}},
+    {"advance_ms": 100},
+    {"expect": {"y_motor.OUT": false, "y_done.OUT": false}}
+  ]
+}

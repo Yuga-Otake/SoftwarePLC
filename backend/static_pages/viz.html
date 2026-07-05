@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Software PLC - 見える化</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #0a0f1a;
+    color: #e2e8f0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  #topbar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; background: #111827; border-bottom: 1px solid #1e293b;
+    flex-wrap: wrap;
+  }
+  .brand { font-size: 12px; font-weight: 800; color: #6366f1; letter-spacing: .5px; }
+  #connDot { width: 9px; height: 9px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 6px #ef444480; flex-shrink: 0; }
+  #connDot.ok { background: #22c55e; box-shadow: 0 0 6px #22c55e80; }
+  #connLabel { font-size: 11px; color: #64748b; }
+  main { padding: 20px; display: flex; flex-direction: column; gap: 22px; max-width: 1100px; margin: 0 auto; }
+  h2 { font-size: 14px; margin: 0 0 10px; color: #e2e8f0; }
+  .cards { display: flex; flex-wrap: wrap; gap: 10px; }
+  .card {
+    min-width: 140px; flex: 1 1 140px;
+    background: #111827; border: 1.5px solid #1e293b; border-radius: 10px;
+    padding: 10px 14px; display: flex; flex-direction: column; gap: 6px;
+  }
+  .card.on { border-color: #22c55e70; box-shadow: 0 0 12px rgba(34,197,94,.2); }
+  .kind-tag {
+    align-self: flex-start; background: #a78bfa; color: #0f172a;
+    font-size: 9px; font-weight: 800; padding: 2px 7px; border-radius: 999px;
+  }
+  .card .label { font-size: 13px; font-weight: 700; }
+  .card .stat { display: flex; align-items: center; gap: 5px; font-size: 10.5px; color: #64748b; }
+  .dot { width: 8px; height: 8px; border-radius: 4px; background: #475569; }
+  .dot.on { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
+  .card .stat.on { color: #22c55e; }
+  .card .count { font-size: 9.5px; color: #475569; }
+
+  select {
+    background: #0f172a; border: 1px solid #334155; border-radius: 5px;
+    color: #94a3b8; font-size: 11px; padding: 4px 8px;
+  }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .chip {
+    font-size: 10.5px; color: #cbd5e1; background: #1e293b; border-radius: 5px;
+    padding: 3px 8px; display: flex; align-items: center; gap: 6px;
+  }
+  .chip button { background: none; border: none; color: #ef4444; cursor: pointer; font-size: 11px; padding: 0; }
+
+  svg.trend { width: 100%; height: 140px; background: #0f172a; border: 1px solid #1e293b; border-radius: 8px; }
+
+  .task-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .task-name { width: 90px; font-size: 11.5px; color: #94a3b8; flex-shrink: 0; }
+  .task-bar-bg { flex: 1; height: 10px; background: #1e293b; border-radius: 5px; overflow: hidden; }
+  .task-bar-fill { height: 100%; transition: width .3s; }
+  .task-pct { width: 60px; text-align: right; font-size: 10.5px; color: #cbd5e1; flex-shrink: 0; }
+
+  .empty { color: #475569; font-size: 11.5px; padding: 8px 0; }
+</style>
+</head>
+<body>
+<div id="topbar">
+  <span class="brand">Software PLC</span>
+  <span style="font-size:12px;color:#94a3b8;">見える化ボード (読み取り専用)</span>
+  <span style="flex:1;"></span>
+  <span id="connDot"></span>
+  <span id="connLabel">未接続</span>
+</div>
+<main>
+  <section>
+    <h2>稼働状況ボード</h2>
+    <div id="statusCards" class="cards"><span class="empty">読み込み中…</span></div>
+  </section>
+
+  <section>
+    <h2>信号トレンド</h2>
+    <select id="signalPicker"><option value="">監視する信号を追加…</option></select>
+    <div id="chips" class="chips"></div>
+    <div id="trendWrap" style="margin-top:10px;"></div>
+  </section>
+
+  <section>
+    <h2>スキャン / タスク使用率</h2>
+    <div id="scanInfo" style="font-size:11.5px;color:#94a3b8;margin-bottom:10px;"></div>
+    <div id="taskBars"></div>
+  </section>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  var connDot = document.getElementById("connDot");
+  var connLabel = document.getElementById("connLabel");
+  var statusCardsEl = document.getElementById("statusCards");
+  var signalPicker = document.getElementById("signalPicker");
+  var chipsEl = document.getElementById("chips");
+  var trendWrap = document.getElementById("trendWrap");
+  var scanInfoEl = document.getElementById("scanInfo");
+  var taskBarsEl = document.getElementById("taskBars");
+
+  var programTree = { nodes: [], edges: [] };
+  var runtimeState = {};
+  var selectedSignals = [];
+  var trendData = {}; // signal -> [{t, value}]
+  var latestMetrics = null;
+  var latestResources = [];
+
+  function flatPath(path, localId) {
+    return path.length ? path.join("/") + "/" + localId : localId;
+  }
+
+  function collectDescendantLeafIds(node, path) {
+    if (node.type !== "group") return [flatPath(path, node.id)];
+    var children = node.children || { nodes: [], edges: [] };
+    var childPath = path.concat([node.id]);
+    var ids = [];
+    children.nodes.forEach(function (n) {
+      ids = ids.concat(collectDescendantLeafIds(n, childPath));
+    });
+    return ids;
+  }
+
+  function collectGroups(graph, path) {
+    var cards = [];
+    graph.nodes.forEach(function (n) {
+      if (n.type !== "group") return;
+      var leafIds = collectDescendantLeafIds(n, path);
+      var anyOn = leafIds.some(function (id) {
+        var outputs = runtimeState[id] || {};
+        return Object.keys(outputs).some(function (k) { return outputs[k] === true; });
+      });
+      cards.push({
+        id: flatPath(path, n.id),
+        label: n.label || n.id,
+        kind: n.kind || "",
+        anyOn: anyOn,
+        leafCount: leafIds.length,
+      });
+      var children = n.children || { nodes: [], edges: [] };
+      cards = cards.concat(collectGroups(children, path.concat([n.id])));
+    });
+    return cards;
+  }
+
+  function renderStatusBoard() {
+    var groups = collectGroups(programTree, []);
+    statusCardsEl.innerHTML = "";
+    if (groups.length === 0) {
+      statusCardsEl.innerHTML = '<span class="empty">階層グループ(装置/工程/動作)が定義されていません。</span>';
+      return;
+    }
+    groups.forEach(function (g) {
+      var card = document.createElement("div");
+      card.className = "card" + (g.anyOn ? " on" : "");
+      var kindTag = document.createElement("span");
+      kindTag.className = "kind-tag";
+      kindTag.textContent = g.kind || "グループ";
+      var label = document.createElement("span");
+      label.className = "label";
+      label.textContent = g.label;
+      var stat = document.createElement("span");
+      stat.className = "stat" + (g.anyOn ? " on" : "");
+      var dot = document.createElement("span");
+      dot.className = "dot" + (g.anyOn ? " on" : "");
+      stat.appendChild(dot);
+      stat.appendChild(document.createTextNode(g.anyOn ? "稼働中" : "停止中"));
+      var count = document.createElement("span");
+      count.className = "count";
+      count.textContent = g.leafCount + " ブロック";
+      card.appendChild(kindTag);
+      card.appendChild(label);
+      card.appendChild(stat);
+      card.appendChild(count);
+      statusCardsEl.appendChild(card);
+    });
+  }
+
+  function loadProgram() {
+    fetch("/api/program")
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        programTree = data;
+        renderStatusBoard();
+      })
+      .catch(function () {});
+  }
+
+  function loadSignals() {
+    fetch("/api/signals")
+      .then(function (r) { return r.json(); })
+      .then(function (signals) {
+        var existing = {};
+        Array.prototype.forEach.call(signalPicker.options, function (o) { existing[o.value] = true; });
+        signals.forEach(function (s) {
+          if (existing[s.path]) return;
+          var opt = document.createElement("option");
+          opt.value = s.path;
+          opt.textContent = s.path + " (" + s.data_type + ")";
+          signalPicker.appendChild(opt);
+        });
+      })
+      .catch(function () {});
+  }
+
+  signalPicker.addEventListener("change", function () {
+    var path = signalPicker.value;
+    if (!path || selectedSignals.indexOf(path) !== -1) return;
+    selectedSignals.push(path);
+    signalPicker.value = "";
+    fetchHistory(path);
+    renderChips();
+    renderTrends();
+  });
+
+  function removeSignal(path) {
+    selectedSignals = selectedSignals.filter(function (p) { return p !== path; });
+    delete trendData[path];
+    renderChips();
+    renderTrends();
+  }
+
+  function renderChips() {
+    chipsEl.innerHTML = "";
+    selectedSignals.forEach(function (sig) {
+      var chip = document.createElement("span");
+      chip.className = "chip";
+      chip.appendChild(document.createTextNode(sig));
+      var btn = document.createElement("button");
+      btn.textContent = "×";
+      btn.addEventListener("click", function () { removeSignal(sig); });
+      chip.appendChild(btn);
+      chipsEl.appendChild(chip);
+    });
+  }
+
+  function fetchHistory(signal) {
+    fetch("/api/viz/history?signal=" + encodeURIComponent(signal))
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        trendData[signal] = (data.samples || []).map(function (s) { return { t: s.t, value: s.value }; });
+        renderTrends();
+      })
+      .catch(function () {});
+  }
+
+  function renderTrends() {
+    trendWrap.innerHTML = "";
+    if (selectedSignals.length === 0) {
+      trendWrap.innerHTML = '<div class="empty">上のドロップダウンから信号を選ぶとトレンドが表示されます。</div>';
+      return;
+    }
+    selectedSignals.forEach(function (sig) {
+      var samples = trendData[sig] || [];
+      var box = document.createElement("div");
+      box.style.marginBottom = "14px";
+      var title = document.createElement("div");
+      title.style.fontSize = "11px";
+      title.style.color = "#94a3b8";
+      title.style.marginBottom = "4px";
+      title.textContent = sig;
+      box.appendChild(title);
+      box.appendChild(buildTrendSvg(samples));
+      trendWrap.appendChild(box);
+    });
+  }
+
+  function buildTrendSvg(samples) {
+    var W = 800, H = 140, PAD = 8;
+    var svgNs = "http://www.w3.org/2000/svg";
+    var svg = document.createElementNS(svgNs, "svg");
+    svg.setAttribute("class", "trend");
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+    svg.setAttribute("preserveAspectRatio", "none");
+
+    if (samples.length < 2) {
+      var text = document.createElementNS(svgNs, "text");
+      text.setAttribute("x", W / 2);
+      text.setAttribute("y", H / 2);
+      text.setAttribute("fill", "#475569");
+      text.setAttribute("font-size", "11");
+      text.setAttribute("text-anchor", "middle");
+      text.textContent = "データ収集中…";
+      svg.appendChild(text);
+      return svg;
+    }
+
+    var values = samples.map(function (s) { return typeof s.value === "boolean" ? (s.value ? 1 : 0) : Number(s.value) || 0; });
+    var isBool = samples.some(function (s) { return typeof s.value === "boolean"; });
+    var minV = Math.min.apply(null, values);
+    var maxV = Math.max.apply(null, values);
+    if (isBool) { minV = 0; maxV = 1; }
+    if (maxV === minV) { maxV = minV + 1; }
+
+    var t0 = samples[0].t;
+    var t1 = samples[samples.length - 1].t;
+    if (t1 === t0) t1 = t0 + 1;
+
+    function xFor(t) { return PAD + ((t - t0) / (t1 - t0)) * (W - 2 * PAD); }
+    function yFor(v) { return H - PAD - ((v - minV) / (maxV - minV)) * (H - 2 * PAD); }
+
+    var points = [];
+    for (var i = 0; i < samples.length; i++) {
+      var x = xFor(samples[i].t);
+      var y = yFor(values[i]);
+      if (isBool && i > 0) {
+        // Step waveform: hold previous value up to this timestamp.
+        points.push(xFor(samples[i].t) + "," + yFor(values[i - 1]));
+      }
+      points.push(x + "," + y);
+    }
+
+    var poly = document.createElementNS(svgNs, "polyline");
+    poly.setAttribute("points", points.join(" "));
+    poly.setAttribute("fill", "none");
+    poly.setAttribute("stroke", "#6366f1");
+    poly.setAttribute("stroke-width", "2");
+    svg.appendChild(poly);
+    return svg;
+  }
+
+  function renderScanInfo() {
+    if (!latestMetrics) {
+      scanInfoEl.textContent = "計測待ち…";
+      return;
+    }
+    scanInfoEl.textContent =
+      "スキャン回数: " + latestMetrics.scan_index +
+      " / サイクル時間: " + latestMetrics.cycle_time_ms.toFixed(2) + " ms" +
+      " (目標 " + latestMetrics.target_cycle_ms + " ms)" +
+      " / 使用率: " + latestMetrics.utilization_pct.toFixed(1) + "%" +
+      " / メモリ: " + latestMetrics.memory_mb.toFixed(1) + " MB";
+  }
+
+  var TASK_LABELS = { control: "制御", hmi: "HMI", viz: "見える化" };
+
+  function renderTaskBars() {
+    taskBarsEl.innerHTML = "";
+    var order = ["control", "hmi", "viz"];
+    var sorted = latestResources.slice().sort(function (a, b) {
+      return order.indexOf(a.name) - order.indexOf(b.name);
+    });
+    if (sorted.length === 0) {
+      taskBarsEl.innerHTML = '<div class="empty">読み込み中…</div>';
+      return;
+    }
+    sorted.forEach(function (task) {
+      var row = document.createElement("div");
+      row.className = "task-row";
+      var name = document.createElement("span");
+      name.className = "task-name";
+      name.textContent = TASK_LABELS[task.name] || task.name;
+      var barBg = document.createElement("div");
+      barBg.className = "task-bar-bg";
+      var barFill = document.createElement("div");
+      barFill.className = "task-bar-fill";
+      var util = task.utilization_pct;
+      var color = task.degraded || util > task.cpu_share ? "#ef4444" : (util > task.cpu_share * 0.7 ? "#f59e0b" : "#22c55e");
+      barFill.style.width = Math.min(util, 100) + "%";
+      barFill.style.background = color;
+      barBg.appendChild(barFill);
+      var pct = document.createElement("span");
+      pct.className = "task-pct";
+      pct.textContent = util.toFixed(1) + "%";
+      row.appendChild(name);
+      row.appendChild(barBg);
+      row.appendChild(pct);
+      taskBarsEl.appendChild(row);
+    });
+  }
+
+  function loadResources() {
+    fetch("/api/resources")
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        latestResources = data.tasks || [];
+        renderTaskBars();
+      })
+      .catch(function () {});
+  }
+
+  // ── WebSocket ────────────────────────────────────────────────────────
+  var ws = null;
+  function connectWs() {
+    var proto = window.location.protocol === "https:" ? "wss" : "ws";
+    ws = new WebSocket(proto + "://" + window.location.host + "/ws");
+    ws.onopen = function () {
+      connDot.classList.add("ok");
+      connLabel.textContent = "接続中";
+    };
+    ws.onclose = function () {
+      connDot.classList.remove("ok");
+      connLabel.textContent = "切断 (再接続中…)";
+      ws = null;
+      setTimeout(connectWs, 2000);
+    };
+    ws.onerror = function () {};
+    ws.onmessage = function (ev) {
+      try {
+        var msg = JSON.parse(ev.data);
+        if (msg.type === "state_update") {
+          if (msg.runtime) { runtimeState = msg.runtime; renderStatusBoard(); }
+          if (msg.metrics) { latestMetrics = msg.metrics; renderScanInfo(); }
+          if (msg.resources) { latestResources = msg.resources; renderTaskBars(); }
+        } else if (msg.type === "viz_update") {
+          if (msg.resources) { latestResources = msg.resources; renderTaskBars(); }
+        }
+      } catch (e) {}
+    };
+  }
+
+  loadProgram();
+  loadSignals();
+  loadResources();
+  connectWs();
+  setInterval(loadSignals, 5000);
+  setInterval(function () {
+    selectedSignals.forEach(fetchHistory);
+  }, 2000);
+})();
+</script>
+</body>
+</html>

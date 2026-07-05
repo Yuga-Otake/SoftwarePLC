@@ -1,0 +1,20 @@
+{
+  "_comment": "Explores the SR latch's Set/Reset dominance in examples/start_stop.json. SR is Set-dominant (S checked before R), and x_stop feeds R via a continuous NOT (not edge-triggered). So: (1) pressing start while stop is simultaneously held does NOT prevent the motor from turning on (S wins); (2) once on, holding stop while releasing start keeps R=False, so Q holds; (3) releasing stop afterward (with start already released) drives R=True and resets the motor.",
+  "program": "../../../examples/start_stop.json",
+  "scan_interval_ms": 100,
+  "steps": [
+    {"expect": {"y_motor.OUT": false}},
+
+    {"set": {"x_stop": true, "x_start": true}},
+    {"advance_ms": 100},
+    {"expect": {"y_motor.OUT": true}},
+
+    {"set": {"x_start": false}},
+    {"advance_ms": 100},
+    {"expect": {"y_motor.OUT": true}},
+
+    {"set": {"x_stop": false}},
+    {"advance_ms": 100},
+    {"expect": {"y_motor.OUT": false}}
+  ]
+}

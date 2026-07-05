@@ -1,0 +1,147 @@
+{
+  "name": "motor_exam",
+  "title": "モーター起動停止検定機",
+  "description": "examples/start_stop.json (X0起動→SRラッチ→Y0モーター、3秒TON→Y1完了) を対象にした検定機。起動PB→モーター起動→3秒後に完了ランプ→停止PBでモーター停止、の一連動作を検定員の手順書どおりに自動実行し、合否判定します。",
+  "target_program": "start_stop",
+  "devices": [
+    {
+      "id": "pb_start",
+      "type": "pushbutton",
+      "label": "起動PB (X0)",
+      "signal": "x_start",
+      "mode": "momentary",
+      "position": {
+        "x": 60,
+        "y": 60
+      }
+    },
+    {
+      "id": "pb_stop",
+      "type": "pushbutton",
+      "label": "停止PB (X1)",
+      "signal": "x_stop",
+      "mode": "momentary",
+      "position": {
+        "x": 60,
+        "y": 180
+      }
+    },
+    {
+      "id": "motor1",
+      "type": "motor",
+      "label": "M1 コンベアモーター (Y0)",
+      "signal": "y_motor.OUT",
+      "position": {
+        "x": 320,
+        "y": 60
+      }
+    },
+    {
+      "id": "lamp_done",
+      "type": "lamp",
+      "label": "運転準備完了 (Y1)",
+      "color": "green",
+      "signal": "y_done.OUT",
+      "position": {
+        "x": 320,
+        "y": 220
+      }
+    },
+    {
+      "id": "fb_sensor",
+      "type": "lamp",
+      "label": "モーター回転検出センサー (模擬)",
+      "color": "amber",
+      "signal": "x_motor_fb",
+      "position": {
+        "x": 560,
+        "y": 60
+      }
+    }
+  ],
+  "feedback_rules": [
+    {
+      "watch": "y_motor.OUT",
+      "equals": true,
+      "delay_ms": 500,
+      "set_input": "x_motor_fb",
+      "value": true,
+      "revert_on_clear": true,
+      "note": "モーター出力ONから500ms後に回転検出センサーがONになる簡易プラント模擬"
+    }
+  ],
+  "exam": {
+    "title": "モーター起動停止検定",
+    "description": "検定員の指示に従い、起動PB→完了ランプ確認→停止PBの順で操作し、各ステップの応答時間を自動判定します。配線上の注意: このプログラムのSRラッチはR入力をNOT(停止PB)から継続的に受けるため、起動PBを離す前に停止PBをONにしてラッチを保持する必要があります(docs/SIMULATION.md参照)。",
+    "steps": [
+      {
+        "op": "set",
+        "signal": "x_start",
+        "value": true,
+        "note": "① 起動PB (X0) を押す"
+      },
+      {
+        "op": "expect",
+        "signal": "y_motor.OUT",
+        "value": true,
+        "within_ms": 300,
+        "note": "② モーター (Y0) が300ms以内に起動すること"
+      },
+      {
+        "op": "expect",
+        "signal": "x_motor_fb",
+        "value": true,
+        "within_ms": 900,
+        "after_ms": 400,
+        "note": "③ 回転検出センサーが400〜900msの間に動作すること(早すぎ・遅すぎともに不合格)"
+      },
+      {
+        "op": "set",
+        "signal": "x_stop",
+        "value": true,
+        "note": "④ ラッチ保持のため停止PB (X1) を先にONにする(このプログラムのR入力はNOT(停止PB)のため)"
+      },
+      {
+        "op": "set",
+        "signal": "x_start",
+        "value": false,
+        "note": "⑤ 起動PBを離す(ラッチは④により保持されたまま)"
+      },
+      {
+        "op": "expect",
+        "signal": "y_motor.OUT",
+        "value": true,
+        "within_ms": 300,
+        "note": "⑥ モーターが起動状態を維持していること"
+      },
+      {
+        "op": "expect",
+        "signal": "y_done.OUT",
+        "value": true,
+        "after_ms": 2000,
+        "within_ms": 3200,
+        "note": "⑦ 起動からおよそ3秒後に運転準備完了ランプ (Y1) が点灯すること(このステップ自体の計測開始はステップ①より後のため、2.0〜3.2秒の範囲で判定)"
+      },
+      {
+        "op": "set",
+        "signal": "x_stop",
+        "value": false,
+        "note": "⑧ 停止PBを離す→R=Trueとなりラッチが即座にリセットされ、モーターが停止すること"
+      },
+      {
+        "op": "expect",
+        "signal": "y_motor.OUT",
+        "value": false,
+        "within_ms": 300,
+        "note": "⑨ モーターが300ms以内に停止すること"
+      },
+      {
+        "op": "expect",
+        "signal": "y_done.OUT",
+        "value": false,
+        "within_ms": 300,
+        "note": "⑩ 完了ランプも連動して消灯すること"
+      }
+    ]
+  }
+}

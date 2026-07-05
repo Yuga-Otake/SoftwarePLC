@@ -1,0 +1,15 @@
+{
+  "name": "main",
+  "widgets": [
+    {
+      "id": "w1783129869439_1",
+      "type": "button_momentary",
+      "x": 69,
+      "y": 108,
+      "w": 110,
+      "h": 44,
+      "label": "ボタン (モーメンタリ)",
+      "signal": "x_start.OUT"
+    }
+  ]
+}

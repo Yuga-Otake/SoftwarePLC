@@ -1,0 +1,30 @@
+{
+  "_comment": "Hierarchical sample (examples/conveyor_machine.json): 装置(machine1) > 工程(process_feed, process_transport) > 動作(startstop_action, timer_action) > leaf blocks. `set`/`expect` use the FLATTENED node paths that the runtime actually executes (e.g. 'machine1/process_feed/y_feed'), exactly as they'd appear from GET /api/debug/state. This exercises the loader's group-flattening + boundary-port passthrough end to end, including 3-level nesting and fan-out (the feed latch's Q drives the feed motor, the transport process's run-in, AND the machine-level 'running' output simultaneously). Same SR set-dominant quirk as start_stop_basic.json applies to the innermost startstop_action group.",
+  "program": "../../../examples/conveyor_machine.json",
+  "scan_interval_ms": 100,
+  "steps": [
+    {"expect": {"y_running.OUT": false, "y_done.OUT": false}},
+
+    {"set": {"x_start": true}},
+    {"advance_ms": 100},
+    {"expect": {
+      "y_running.OUT": true,
+      "machine1/process_feed/y_feed.OUT": true,
+      "machine1/process_transport/y_transport.OUT": true,
+      "y_done.OUT": false
+    }},
+
+    {"advance_ms": 2800},
+    {"expect": {"y_done.OUT": false}},
+
+    {"advance_ms": 200},
+    {"expect": {
+      "y_done.OUT": true,
+      "machine1/process_transport/timer_action/ton1.Q": true
+    }},
+
+    {"set": {"x_start": false}},
+    {"advance_ms": 100},
+    {"expect": {"y_running.OUT": false}}
+  ]
+}

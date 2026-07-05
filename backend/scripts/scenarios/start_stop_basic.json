@@ -1,0 +1,32 @@
+{
+  "_comment": "Basic start/stop behavior for examples/start_stop.json. NOTE: in the current wiring, x_stop drives the SR reset input through a continuous NOT (not an edge), so R is True on every scan where x_stop is False. This means the SR latch only holds Q=True while x_stop is actively held True alongside x_start release; releasing x_start while x_stop is False immediately resets the motor. This scenario documents that real (momentary-like) behavior rather than an idealized 'latch that holds after start is released'.",
+  "program": "../../../examples/start_stop.json",
+  "scan_interval_ms": 100,
+  "steps": [
+    {"expect": {"y_motor.OUT": false, "y_done.OUT": false}},
+
+    {"set": {"x_start": true}},
+    {"advance_ms": 100},
+    {"expect": {"y_motor.OUT": true, "y_done.OUT": false}},
+
+    {"set": {"x_start": false}},
+    {"advance_ms": 100},
+    {"expect": {"y_motor.OUT": false}},
+
+    {"set": {"x_start": true}},
+    {"advance_ms": 100},
+    {"expect": {"y_motor.OUT": true}},
+
+    {"set": {"x_stop": true}},
+    {"advance_ms": 100},
+    {"expect": {"y_motor.OUT": true}},
+
+    {"set": {"x_start": false}},
+    {"advance_ms": 100},
+    {"expect": {"y_motor.OUT": true}},
+
+    {"set": {"x_stop": false}},
+    {"advance_ms": 100},
+    {"expect": {"y_motor.OUT": false, "y_done.OUT": false}}
+  ]
+}

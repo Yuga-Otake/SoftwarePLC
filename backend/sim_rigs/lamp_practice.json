@@ -1,0 +1,35 @@
+{
+  "name": "lamp_practice",
+  "title": "ランプ点灯練習機 (スイッチ連動)",
+  "description": "検定機は「ツールのハードコード」ではなく設定(JSON)から作れることを示すための、もう1つの最小構成サンプル。start_stopプログラムのX1(停止PB)をトグルスイッチとして使い、ランプの点灯/消灯だけを検定します。デバイス構成・検定手順とも本ファイルを書き換えるだけで別の検定機になります。",
+  "target_program": "start_stop",
+  "devices": [
+    {
+      "id": "sw1",
+      "type": "switch",
+      "label": "手動スイッチ (X1)",
+      "signal": "x_stop",
+      "position": { "x": 60, "y": 100 }
+    },
+    {
+      "id": "lamp1",
+      "type": "lamp",
+      "label": "表示ランプ (NOT(X1)相当)",
+      "color": "amber",
+      "signal": "not1.OUT",
+      "position": { "x": 280, "y": 100 }
+    }
+  ],
+  "feedback_rules": [],
+  "exam": {
+    "title": "ランプ点灯練習検定",
+    "description": "スイッチのON/OFFに応じてランプが正しく連動することだけを確認する、練習用の短い検定です。",
+    "steps": [
+      { "op": "expect", "signal": "not1.OUT", "value": true, "within_ms": 300, "note": "① 初期状態でランプが点灯していること(スイッチOFF→NOT出力ON)" },
+      { "op": "set", "signal": "x_stop", "value": true, "note": "② スイッチをONにする" },
+      { "op": "expect", "signal": "not1.OUT", "value": false, "within_ms": 300, "note": "③ ランプが300ms以内に消灯すること" },
+      { "op": "set", "signal": "x_stop", "value": false, "note": "④ スイッチをOFFに戻す" },
+      { "op": "expect", "signal": "not1.OUT", "value": true, "within_ms": 300, "note": "⑤ ランプが300ms以内に再点灯すること" }
+    ]
+  }
+}

@@ -1,0 +1,138 @@
+{
+  "_comment": "3-level hierarchy sample: 装置(machine1) > 工程(process_feed, process_transport) > 動作(startstop_action, timer_action) > leaf blocks. See docs/HIERARCHY.md for the group/port-reference format.",
+  "nodes": [
+    {
+      "id": "x_start", "type": "DigitalInput", "params": {"value": false},
+      "position": {"x": 40, "y": 120}, "label": "X0 Start"
+    },
+    {
+      "id": "x_stop", "type": "DigitalInput", "params": {"value": false},
+      "position": {"x": 40, "y": 260}, "label": "X1 Stop"
+    },
+    {
+      "id": "machine1", "type": "group", "label": "搬送装置", "kind": "装置",
+      "position": {"x": 300, "y": 120},
+      "inputs": [
+        {"id": "start", "name": "Start", "data_type": "bool"},
+        {"id": "stop", "name": "Stop", "data_type": "bool"}
+      ],
+      "outputs": [
+        {"id": "running", "name": "Running", "data_type": "bool"},
+        {"id": "done", "name": "Done", "data_type": "bool"}
+      ],
+      "children": {
+        "nodes": [
+          {
+            "id": "process_feed", "type": "group", "label": "供給工程", "kind": "工程",
+            "position": {"x": 60, "y": 60},
+            "inputs": [
+              {"id": "start", "name": "Start", "data_type": "bool"},
+              {"id": "stop", "name": "Stop", "data_type": "bool"}
+            ],
+            "outputs": [
+              {"id": "running", "name": "Running", "data_type": "bool"}
+            ],
+            "children": {
+              "nodes": [
+                {
+                  "id": "startstop_action", "type": "group", "label": "スタートストップ動作", "kind": "動作",
+                  "position": {"x": 60, "y": 60},
+                  "inputs": [
+                    {"id": "s_in", "name": "S", "data_type": "bool"},
+                    {"id": "r_in", "name": "R", "data_type": "bool"}
+                  ],
+                  "outputs": [
+                    {"id": "q_out", "name": "Q", "data_type": "bool"}
+                  ],
+                  "children": {
+                    "nodes": [
+                      {"id": "not1", "type": "NOT", "params": {}, "position": {"x": 60, "y": 140}, "label": ""},
+                      {"id": "sr1", "type": "SR", "params": {}, "position": {"x": 240, "y": 80}, "label": "Feed Latch"}
+                    ],
+                    "edges": [
+                      {"id": "e1", "source": "$parent", "source_handle": "s_in", "target": "sr1", "target_handle": "S"},
+                      {"id": "e2", "source": "$parent", "source_handle": "r_in", "target": "not1", "target_handle": "IN"},
+                      {"id": "e3", "source": "not1", "source_handle": "OUT", "target": "sr1", "target_handle": "R"},
+                      {"id": "e4", "source": "sr1", "source_handle": "Q", "target": "$parent", "target_handle": "q_out"}
+                    ]
+                  }
+                },
+                {"id": "y_feed", "type": "DigitalOutput", "params": {}, "position": {"x": 320, "y": 60}, "label": "Y0 Feed Motor"}
+              ],
+              "edges": [
+                {"id": "e5", "source": "$parent", "source_handle": "start", "target": "startstop_action", "target_handle": "s_in"},
+                {"id": "e6", "source": "$parent", "source_handle": "stop", "target": "startstop_action", "target_handle": "r_in"},
+                {"id": "e7", "source": "startstop_action", "source_handle": "q_out", "target": "y_feed", "target_handle": "IN"},
+                {"id": "e8", "source": "startstop_action", "source_handle": "q_out", "target": "$parent", "target_handle": "running"}
+              ]
+            }
+          },
+          {
+            "id": "process_transport", "type": "group", "label": "搬送工程", "kind": "工程",
+            "position": {"x": 60, "y": 260},
+            "inputs": [
+              {"id": "run_in", "name": "RunIn", "data_type": "bool"}
+            ],
+            "outputs": [
+              {"id": "running", "name": "Running", "data_type": "bool"},
+              {"id": "done", "name": "Done", "data_type": "bool"}
+            ],
+            "children": {
+              "nodes": [
+                {
+                  "id": "timer_action", "type": "group", "label": "タイマー動作", "kind": "動作",
+                  "position": {"x": 60, "y": 60},
+                  "inputs": [
+                    {"id": "en_in", "name": "EN", "data_type": "bool"}
+                  ],
+                  "outputs": [
+                    {"id": "q_out", "name": "Q", "data_type": "bool"},
+                    {"id": "et_out", "name": "ET", "data_type": "float"}
+                  ],
+                  "children": {
+                    "nodes": [
+                      {"id": "ton1", "type": "TON", "params": {"PT": 3000}, "position": {"x": 200, "y": 60}, "label": "Transport Timer"}
+                    ],
+                    "edges": [
+                      {"id": "e9", "source": "$parent", "source_handle": "en_in", "target": "ton1", "target_handle": "IN"},
+                      {"id": "e10", "source": "ton1", "source_handle": "Q", "target": "$parent", "target_handle": "q_out"},
+                      {"id": "e11", "source": "ton1", "source_handle": "ET", "target": "$parent", "target_handle": "et_out"}
+                    ]
+                  }
+                },
+                {"id": "y_transport", "type": "DigitalOutput", "params": {}, "position": {"x": 320, "y": 260}, "label": "Y1 Transport Motor"}
+              ],
+              "edges": [
+                {"id": "e12", "source": "$parent", "source_handle": "run_in", "target": "timer_action", "target_handle": "en_in"},
+                {"id": "e13", "source": "$parent", "source_handle": "run_in", "target": "y_transport", "target_handle": "IN"},
+                {"id": "e14", "source": "$parent", "source_handle": "run_in", "target": "$parent", "target_handle": "running"},
+                {"id": "e15", "source": "timer_action", "source_handle": "q_out", "target": "$parent", "target_handle": "done"}
+              ]
+            }
+          }
+        ],
+        "edges": [
+          {"id": "e16", "source": "$parent", "source_handle": "start", "target": "process_feed", "target_handle": "start"},
+          {"id": "e17", "source": "$parent", "source_handle": "stop", "target": "process_feed", "target_handle": "stop"},
+          {"id": "e18", "source": "process_feed", "source_handle": "running", "target": "process_transport", "target_handle": "run_in"},
+          {"id": "e19", "source": "process_feed", "source_handle": "running", "target": "$parent", "target_handle": "running"},
+          {"id": "e20", "source": "process_transport", "source_handle": "done", "target": "$parent", "target_handle": "done"}
+        ]
+      }
+    },
+    {
+      "id": "y_running", "type": "DigitalOutput", "params": {},
+      "position": {"x": 620, "y": 120}, "label": "Y2 Machine Running"
+    },
+    {
+      "id": "y_done", "type": "DigitalOutput", "params": {},
+      "position": {"x": 620, "y": 220}, "label": "Y3 Machine Done"
+    }
+  ],
+  "edges": [
+    {"id": "e21", "source": "x_start", "source_handle": "OUT", "target": "machine1", "target_handle": "start"},
+    {"id": "e22", "source": "x_stop", "source_handle": "OUT", "target": "machine1", "target_handle": "stop"},
+    {"id": "e23", "source": "machine1", "source_handle": "running", "target": "y_running", "target_handle": "IN"},
+    {"id": "e24", "source": "machine1", "source_handle": "done", "target": "y_done", "target_handle": "IN"}
+  ]
+}

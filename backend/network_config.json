@@ -1,0 +1,22 @@
+{
+  "services": [
+    {
+      "name": "studio",
+      "role": "studio",
+      "port": 8000,
+      "enabled": true
+    },
+    {
+      "name": "hmi",
+      "role": "hmi",
+      "port": 8010,
+      "enabled": true
+    },
+    {
+      "name": "viz",
+      "role": "viz",
+      "port": 8020,
+      "enabled": true
+    }
+  ]
+}

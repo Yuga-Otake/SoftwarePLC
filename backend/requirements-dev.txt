@@ -1,0 +1,8 @@
+# Development/test-only dependencies. Install alongside requirements.txt:
+#   pip install -r requirements.txt -r requirements-dev.txt
+# (use `pip install --user ...` if you don't have write access to the
+# system/site Python environment).
+-r requirements.txt
+pytest==9.1.1
+pytest-asyncio==1.4.0
+httpx==0.28.1

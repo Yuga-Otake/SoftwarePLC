@@ -1,0 +1,86 @@
+{
+  "_comment": "KENTEI-PLC(検定盤)風フラット構成プログラム。PB1で正転開始、右端LSで正転OFF/逆転ON、左端LSで全停止。正転/逆転リレーコイル(y_ry_fwd/y_ry_rev)は出力段でAND+NOTのインターロックを二重にかけ、同時励磁を防ぐ。ジグのネジ穴4つは幅方向のレーン0〜3に並び(backend/sim_rigs/kentei_plc.jsonのjig1.features[].lane参照)、レーンごとに独立したネジ検出センサー(x_sens1〜x_sens4)が自レーンのネジ穴だけを検出する。各レーンの検出はSRラッチ(lat_sens1〜lat_sens4)で保持し(通過後もOFFに戻らないようにする)、PB1押下でラッチを一斉リセットしてから搬送を開始する。4本のラッチ出力はADDブロックで合算し、VAR_WRITEでvar.screw_countへ書込む(DPL1の7セグ表示)。PB2はいつでも全停止+ラッチ/カウントリセット。SS0(自動/手動)・PB3〜PB5・PL3/PL4・DSW・7セグはこのプログラムでは未配線(backend/sim_rigs/kentei_plc.jsonのデバイスとして表示のみ)。",
+  "nodes": [
+    {"id": "x_pb1", "type": "DigitalInput", "params": {"value": false}, "position": {"x": 40, "y": 40}, "label": "PB1 起動(正転)"},
+    {"id": "x_pb2", "type": "DigitalInput", "params": {"value": false}, "position": {"x": 40, "y": 140}, "label": "PB2 停止"},
+    {"id": "x_ls_left", "type": "DigitalInput", "params": {"value": false}, "position": {"x": 40, "y": 240}, "label": "LS左端"},
+    {"id": "x_ls_right", "type": "DigitalInput", "params": {"value": false}, "position": {"x": 40, "y": 340}, "label": "LS右端"},
+
+    {"id": "x_sens1", "type": "DigitalInput", "params": {"value": false}, "position": {"x": 40, "y": 460}, "label": "ネジ検出センサー(レーン0)"},
+    {"id": "x_sens2", "type": "DigitalInput", "params": {"value": false}, "position": {"x": 40, "y": 540}, "label": "ネジ検出センサー(レーン1)"},
+    {"id": "x_sens3", "type": "DigitalInput", "params": {"value": false}, "position": {"x": 40, "y": 620}, "label": "ネジ検出センサー(レーン2)"},
+    {"id": "x_sens4", "type": "DigitalInput", "params": {"value": false}, "position": {"x": 40, "y": 700}, "label": "ネジ検出センサー(レーン3)"},
+
+    {"id": "or_reset_fwd", "type": "OR", "params": {}, "position": {"x": 240, "y": 100}, "label": "R条件(正転): PB2 or 右端"},
+    {"id": "sr_fwd", "type": "SR", "params": {}, "position": {"x": 420, "y": 60}, "label": "正転ラッチ"},
+
+    {"id": "or_reset_rev", "type": "OR", "params": {}, "position": {"x": 240, "y": 300}, "label": "R条件(逆転): PB2 or 左端"},
+    {"id": "sr_rev", "type": "SR", "params": {}, "position": {"x": 420, "y": 260}, "label": "逆転ラッチ"},
+
+    {"id": "not_rev_q", "type": "NOT", "params": {}, "position": {"x": 600, "y": 160}, "label": "NOT(逆転ラッチ)"},
+    {"id": "not_fwd_q", "type": "NOT", "params": {}, "position": {"x": 600, "y": 360}, "label": "NOT(正転ラッチ)"},
+    {"id": "and_fwd_out", "type": "AND", "params": {}, "position": {"x": 760, "y": 60}, "label": "正転出力(インターロック)"},
+    {"id": "and_rev_out", "type": "AND", "params": {}, "position": {"x": 760, "y": 260}, "label": "逆転出力(インターロック)"},
+
+    {"id": "y_ry_fwd", "type": "DigitalOutput", "params": {}, "position": {"x": 940, "y": 60}, "label": "正転リレーコイル"},
+    {"id": "y_ry_rev", "type": "DigitalOutput", "params": {}, "position": {"x": 940, "y": 260}, "label": "逆転リレーコイル"},
+    {"id": "pl1", "type": "DigitalOutput", "params": {}, "position": {"x": 1120, "y": 60}, "label": "PL1 正転運転中"},
+    {"id": "pl2", "type": "DigitalOutput", "params": {}, "position": {"x": 1120, "y": 260}, "label": "PL2 逆転運転中"},
+
+    {"id": "or_reset_lanes", "type": "OR", "params": {}, "position": {"x": 240, "y": 460}, "label": "レーンラッチR条件: PB1 or PB2"},
+
+    {"id": "lat_sens1", "type": "SR", "params": {}, "position": {"x": 420, "y": 440}, "label": "レーン0検出ラッチ"},
+    {"id": "lat_sens2", "type": "SR", "params": {}, "position": {"x": 420, "y": 520}, "label": "レーン1検出ラッチ"},
+    {"id": "lat_sens3", "type": "SR", "params": {}, "position": {"x": 420, "y": 600}, "label": "レーン2検出ラッチ"},
+    {"id": "lat_sens4", "type": "SR", "params": {}, "position": {"x": 420, "y": 680}, "label": "レーン3検出ラッチ"},
+
+    {"id": "add_screw_count", "type": "ADD", "params": {}, "position": {"x": 600, "y": 540}, "label": "レーン合算(装着本数)"},
+    {"id": "var_write_count", "type": "VAR_WRITE", "params": {"VAR_ID": "screw_count"}, "position": {"x": 780, "y": 540}, "label": "screw_countへ書込"}
+  ],
+  "edges": [
+    {"id": "e1", "source": "x_pb2", "source_handle": "OUT", "target": "or_reset_fwd", "target_handle": "IN1"},
+    {"id": "e2", "source": "x_ls_right", "source_handle": "OUT", "target": "or_reset_fwd", "target_handle": "IN2"},
+    {"id": "e3", "source": "x_pb1", "source_handle": "OUT", "target": "sr_fwd", "target_handle": "S"},
+    {"id": "e4", "source": "or_reset_fwd", "source_handle": "OUT", "target": "sr_fwd", "target_handle": "R"},
+
+    {"id": "e5", "source": "x_pb2", "source_handle": "OUT", "target": "or_reset_rev", "target_handle": "IN1"},
+    {"id": "e6", "source": "x_ls_left", "source_handle": "OUT", "target": "or_reset_rev", "target_handle": "IN2"},
+    {"id": "e7", "source": "x_ls_right", "source_handle": "OUT", "target": "sr_rev", "target_handle": "S"},
+    {"id": "e8", "source": "or_reset_rev", "source_handle": "OUT", "target": "sr_rev", "target_handle": "R"},
+
+    {"id": "e9",  "source": "sr_rev", "source_handle": "Q", "target": "not_rev_q", "target_handle": "IN"},
+    {"id": "e10", "source": "sr_fwd", "source_handle": "Q", "target": "not_fwd_q", "target_handle": "IN"},
+
+    {"id": "e11", "source": "sr_fwd",     "source_handle": "Q",   "target": "and_fwd_out", "target_handle": "IN1"},
+    {"id": "e12", "source": "not_rev_q",  "source_handle": "OUT", "target": "and_fwd_out", "target_handle": "IN2"},
+    {"id": "e13", "source": "sr_rev",     "source_handle": "Q",   "target": "and_rev_out", "target_handle": "IN1"},
+    {"id": "e14", "source": "not_fwd_q",  "source_handle": "OUT", "target": "and_rev_out", "target_handle": "IN2"},
+
+    {"id": "e15", "source": "and_fwd_out", "source_handle": "OUT", "target": "y_ry_fwd", "target_handle": "IN"},
+    {"id": "e16", "source": "and_rev_out", "source_handle": "OUT", "target": "y_ry_rev", "target_handle": "IN"},
+    {"id": "e17", "source": "and_fwd_out", "source_handle": "OUT", "target": "pl1", "target_handle": "IN"},
+    {"id": "e18", "source": "and_rev_out", "source_handle": "OUT", "target": "pl2", "target_handle": "IN"},
+
+    {"id": "e19", "source": "x_pb1", "source_handle": "OUT", "target": "or_reset_lanes", "target_handle": "IN1"},
+    {"id": "e20", "source": "x_pb2", "source_handle": "OUT", "target": "or_reset_lanes", "target_handle": "IN2"},
+
+    {"id": "e21", "source": "x_sens1", "source_handle": "OUT", "target": "lat_sens1", "target_handle": "S"},
+    {"id": "e22", "source": "or_reset_lanes", "source_handle": "OUT", "target": "lat_sens1", "target_handle": "R"},
+    {"id": "e23", "source": "x_sens2", "source_handle": "OUT", "target": "lat_sens2", "target_handle": "S"},
+    {"id": "e24", "source": "or_reset_lanes", "source_handle": "OUT", "target": "lat_sens2", "target_handle": "R"},
+    {"id": "e25", "source": "x_sens3", "source_handle": "OUT", "target": "lat_sens3", "target_handle": "S"},
+    {"id": "e26", "source": "or_reset_lanes", "source_handle": "OUT", "target": "lat_sens3", "target_handle": "R"},
+    {"id": "e27", "source": "x_sens4", "source_handle": "OUT", "target": "lat_sens4", "target_handle": "S"},
+    {"id": "e28", "source": "or_reset_lanes", "source_handle": "OUT", "target": "lat_sens4", "target_handle": "R"},
+
+    {"id": "e29", "source": "lat_sens1", "source_handle": "Q", "target": "add_screw_count", "target_handle": "IN1"},
+    {"id": "e30", "source": "lat_sens2", "source_handle": "Q", "target": "add_screw_count", "target_handle": "IN2"},
+    {"id": "e31", "source": "lat_sens3", "source_handle": "Q", "target": "add_screw_count", "target_handle": "IN3"},
+    {"id": "e32", "source": "lat_sens4", "source_handle": "Q", "target": "add_screw_count", "target_handle": "IN4"},
+    {"id": "e33", "source": "add_screw_count", "source_handle": "OUT", "target": "var_write_count", "target_handle": "IN"}
+  ],
+  "variables": [
+    {"id": "screw_count", "name": "ネジ検出カウント", "type": "number", "initial": 0, "comment": "レーン0〜3の検出ラッチ(lat_sens1〜4)をADDで合算した現在の装着本数。PB1押下(搬送開始)またはPB2(停止)でラッチが一斉リセットされる。"},
+    {"id": "dsw", "name": "DSW値", "type": "number", "initial": 0, "comment": "デジタルスイッチ(DSW)の現在値。このプログラムでは未配線(表示専用のvar.dswとして sim_rigs/kentei_plc.json のDSW/DPL2デバイスから読み書きされるだけ)。"}
+  ]
+}

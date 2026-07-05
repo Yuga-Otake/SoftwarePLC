@@ -1,0 +1,279 @@
+{
+  "name": "kentei_plc",
+  "title": "KENTEI-PLC 検定盤(シーケンサ検定練習機)",
+  "description": "実物のシーケンサ検定盤(OMRON系検定練習機)を模した検定機。examples/kentei_machine.jsonを対象に、正転/逆転の2個のリレー(PLC出力→リレーコイル→接点→モーター/コンベア駆動という実配線を模擬)、ネジ穴4つ(コンベア進行方向に対して垂直=幅方向にレーン0〜3として並び、着脱可能)を持つジグ、両端リミットスイッチ+レーンごとに4連のネジ検出センサー(各センサーは自分のレーンのネジ穴だけを検出)、PB1〜PB5、SS0/SS1、PL1〜PL4、DSW(デジタルスイッチ)、DPL1/DPL2(7セグ表示)を配置。PB1で正転リレー励磁→コンベア搬送→右端LSで逆転リレーへ切替→左端LSで全停止、の一連動作と、ジグ通過時に4連センサーが装着レーンのパターンを同時入力として検出し、SRラッチ→ADD合算でネジ本数がDPL1へ表示される様子を検定します。",
+  "target_program": "kentei_machine",
+  "devices": [
+    {
+      "id": "ry_fwd",
+      "type": "relay",
+      "label": "リレー RY1 (正転)",
+      "coil_signal": "y_ry_fwd.OUT",
+      "contact_signal": "ry_fwd_contact",
+      "position": { "x": 40, "y": 40 }
+    },
+    {
+      "id": "ry_rev",
+      "type": "relay",
+      "label": "リレー RY2 (逆転)",
+      "coil_signal": "y_ry_rev.OUT",
+      "contact_signal": "ry_rev_contact",
+      "position": { "x": 220, "y": 40 }
+    },
+
+    {
+      "id": "conv1",
+      "type": "conveyor",
+      "label": "搬送コンベア(リレー接点経由駆動)",
+      "drive_signal": "ry_fwd_contact",
+      "reverse_signal": "ry_rev_contact",
+      "length_mm": 900,
+      "speed_mm_s": 100,
+      "width": 700,
+      "position": { "x": 40, "y": 180 }
+    },
+    {
+      "id": "jig1",
+      "type": "jig",
+      "label": "ジグ(ネジ穴4、幅方向レーン0〜3)",
+      "conveyor": "conv1",
+      "home_mm": 0,
+      "size_mm": 120,
+      "at_end": "stop",
+      "features": [
+        { "id": "screw1", "type": "screw", "offset_mm": 60, "lane": 0, "label": "ネジ穴1(レーン0)", "attached": true },
+        { "id": "screw2", "type": "screw", "offset_mm": 60, "lane": 1, "label": "ネジ穴2(レーン1)", "attached": false },
+        { "id": "screw3", "type": "screw", "offset_mm": 60, "lane": 2, "label": "ネジ穴3(レーン2)", "attached": true },
+        { "id": "screw4", "type": "screw", "offset_mm": 60, "lane": 3, "label": "ネジ穴4(レーン3)", "attached": false }
+      ]
+    },
+    {
+      "id": "ls_left",
+      "type": "position_sensor",
+      "label": "LS左端",
+      "conveyor": "conv1",
+      "at_mm": 0,
+      "window_mm": 10,
+      "detect": "jig",
+      "sensor_style": "limit_switch",
+      "signal": "x_ls_left",
+      "position": { "x": 40, "y": 320 }
+    },
+    {
+      "id": "ls_right",
+      "type": "position_sensor",
+      "label": "LS右端",
+      "conveyor": "conv1",
+      "at_mm": 800,
+      "window_mm": 10,
+      "detect": "jig",
+      "sensor_style": "limit_switch",
+      "signal": "x_ls_right",
+      "position": { "x": 700, "y": 320 }
+    },
+    {
+      "id": "sens1",
+      "type": "position_sensor",
+      "label": "ネジ検出センサー(レーン0)",
+      "conveyor": "conv1",
+      "at_mm": 450,
+      "lane": 0,
+      "window_mm": 10,
+      "detect": "feature",
+      "sensor_style": "proximity",
+      "signal": "x_sens1",
+      "position": { "x": 400, "y": 300 }
+    },
+    {
+      "id": "sens2",
+      "type": "position_sensor",
+      "label": "ネジ検出センサー(レーン1)",
+      "conveyor": "conv1",
+      "at_mm": 450,
+      "lane": 1,
+      "window_mm": 10,
+      "detect": "feature",
+      "sensor_style": "proximity",
+      "signal": "x_sens2",
+      "position": { "x": 400, "y": 330 }
+    },
+    {
+      "id": "sens3",
+      "type": "position_sensor",
+      "label": "ネジ検出センサー(レーン2)",
+      "conveyor": "conv1",
+      "at_mm": 450,
+      "lane": 2,
+      "window_mm": 10,
+      "detect": "feature",
+      "sensor_style": "proximity",
+      "signal": "x_sens3",
+      "position": { "x": 400, "y": 360 }
+    },
+    {
+      "id": "sens4",
+      "type": "position_sensor",
+      "label": "ネジ検出センサー(レーン3)",
+      "conveyor": "conv1",
+      "at_mm": 450,
+      "lane": 3,
+      "window_mm": 10,
+      "detect": "feature",
+      "sensor_style": "proximity",
+      "signal": "x_sens4",
+      "position": { "x": 400, "y": 390 }
+    },
+
+    {
+      "id": "pb1",
+      "type": "pushbutton",
+      "label": "PB1 起動(正転)",
+      "signal": "x_pb1",
+      "mode": "momentary",
+      "position": { "x": 40, "y": 440 }
+    },
+    {
+      "id": "pb2",
+      "type": "pushbutton",
+      "label": "PB2 停止",
+      "signal": "x_pb2",
+      "mode": "momentary",
+      "position": { "x": 150, "y": 440 }
+    },
+    {
+      "id": "pb3",
+      "type": "pushbutton",
+      "label": "PB3 (未配線)",
+      "signal": "x_pb3",
+      "mode": "momentary",
+      "position": { "x": 260, "y": 440 }
+    },
+    {
+      "id": "pb4",
+      "type": "pushbutton",
+      "label": "PB4 (未配線)",
+      "signal": "x_pb4",
+      "mode": "momentary",
+      "position": { "x": 370, "y": 440 }
+    },
+    {
+      "id": "pb5",
+      "type": "pushbutton",
+      "label": "PB5 非常停止(PB2と同じ停止入力)",
+      "signal": "x_pb2",
+      "mode": "momentary",
+      "color": "red",
+      "position": { "x": 480, "y": 440 }
+    },
+
+    {
+      "id": "ss0",
+      "type": "switch",
+      "label": "SS0 自動/手動",
+      "signal": "x_ss0",
+      "position": { "x": 620, "y": 440 }
+    },
+    {
+      "id": "ss1",
+      "type": "switch",
+      "label": "SS1 (未配線)",
+      "signal": "x_ss1",
+      "position": { "x": 730, "y": 440 }
+    },
+
+    {
+      "id": "pl1",
+      "type": "lamp",
+      "label": "PL1 正転運転中",
+      "color": "green",
+      "signal": "pl1.OUT",
+      "position": { "x": 40, "y": 560 }
+    },
+    {
+      "id": "pl2",
+      "type": "lamp",
+      "label": "PL2 逆転運転中",
+      "color": "amber",
+      "signal": "pl2.OUT",
+      "position": { "x": 150, "y": 560 }
+    },
+    {
+      "id": "pl3",
+      "type": "lamp",
+      "label": "PL3 (未配線)",
+      "color": "blue",
+      "signal": "x_pl3_unused",
+      "position": { "x": 260, "y": 560 }
+    },
+    {
+      "id": "pl4",
+      "type": "lamp",
+      "label": "PL4 (未配線)",
+      "color": "red",
+      "signal": "x_pl4_unused",
+      "position": { "x": 370, "y": 560 }
+    },
+
+    {
+      "id": "dsw",
+      "type": "digit_switch",
+      "label": "DSW デジタルスイッチ",
+      "signal": "var.dsw",
+      "digits": 1,
+      "min": 0,
+      "max": 9,
+      "position": { "x": 520, "y": 560 }
+    },
+    {
+      "id": "dpl1",
+      "type": "indicator_number",
+      "style": "seven_seg",
+      "label": "DPL1 ネジ検出カウント",
+      "signal": "var.screw_count",
+      "digits": 2,
+      "position": { "x": 640, "y": 560 }
+    },
+    {
+      "id": "dpl2",
+      "type": "indicator_number",
+      "style": "seven_seg",
+      "label": "DPL2 (DSWエコー表示)",
+      "signal": "var.dsw",
+      "digits": 1,
+      "position": { "x": 760, "y": 560 }
+    }
+  ],
+  "feedback_rules": [],
+  "exam": {
+    "title": "KENTEI-PLC 検定(正転→逆転切替→レーン別ネジ検出カウント)",
+    "description": "ネジ2本(レーン0=ネジ穴1・レーン2=ネジ穴3)を装着した状態でPB1を起動し、正転リレー(RY1)励磁→コンベア搬送→右端LS到達で正転OFF/逆転リレー(RY2)励磁への切替→左端LSで全停止、までの一連動作と、ジグ通過時に4連ネジ検出センサー(x_sens1〜x_sens4、いずれもat_mm=450地点で自レーンのネジ穴のみ検出)が装着レーンだけ同時に反応し、各レーンのSRラッチ→ADD合算→screw_countで本数がDPL1へ表示される様子を検定します。conv1は速度100mm/s、ジグhome_mm=0・size_mm=120、ネジ穴は全レーンoffset_mm=60(ジグ中央)で幅方向にのみ位置が異なるため、往路ではレーン0とレーン2が理論値(450-60)/100=3.9秒でほぼ同時にセンサーへ到達し、ラッチ2個がON→ADD合算でscrew_count=2。左端LS(at_mm=0)からジグ本体(0..120mm)が右端LS(at_mm=800)の窓(795〜805mm)へ到達するのは本体先頭が675mm付近(size_mm=120なので先頭675mmで本体尾部795mm)に達した時点、理論値6.75秒付近。以降は逆転で往路と対称に反応し、再度3.9秒後(右端LS到達から6.75秒後、理論値13.5秒付近)に左端LSへ帰着します。往路・復路ともラッチはON状態を保持するため、count自体は往路到達時の2のまま変化しません(往復で加算されるのではなく、レーンごとに1回ラッチされた本数を表示する仕様)。",
+    "steps": [
+      { "op": "expect", "signal": "x_ls_left", "value": true, "within_ms": 300, "note": "① 初期状態でジグが原点(左端LS検出中)であること" },
+      { "op": "expect", "signal": "ry_fwd_contact", "value": false, "within_ms": 300, "note": "② 初期状態で正転リレー接点がOFFであること" },
+      { "op": "expect", "signal": "ry_rev_contact", "value": false, "within_ms": 300, "note": "③ 初期状態で逆転リレー接点がOFFであること" },
+      { "op": "set_feature", "jig": "jig1", "feature": "screw1", "attached": true, "note": "④ ネジ穴1(レーン0)にネジを装着した状態に設定" },
+      { "op": "set_feature", "jig": "jig1", "feature": "screw3", "attached": true, "note": "⑤ ネジ穴3(レーン2)にネジを装着した状態に設定(ネジ2本パターン: レーン0・レーン2)" },
+      { "op": "set_feature", "jig": "jig1", "feature": "screw2", "attached": false, "note": "⑥ ネジ穴2(レーン1)は未装着に設定" },
+      { "op": "set_feature", "jig": "jig1", "feature": "screw4", "attached": false, "note": "⑦ ネジ穴4(レーン3)は未装着に設定" },
+      { "op": "set", "signal": "x_pb1", "value": true, "note": "⑧ PB1(起動)を押す" },
+      { "op": "expect", "signal": "y_ry_fwd.OUT", "value": true, "within_ms": 300, "note": "⑨ 正転リレーコイル(PLC出力)が300ms以内に励磁すること" },
+      { "op": "expect", "signal": "ry_fwd_contact", "value": true, "within_ms": 300, "note": "⑩ 正転リレー接点(RY1)が連動してONになること(コイル→接点の配線実証)" },
+      { "op": "set", "signal": "x_pb1", "value": false, "note": "⑪ PB1を離す(SRラッチのため正転は保持される)" },
+      { "op": "expect", "signal": "x_sens1", "value": true, "after_ms": 3600, "within_ms": 4400, "note": "⑫ 往路: レーン0のネジ穴1が理論値3.9秒付近でセンサー(x_sens1)へ到達し検出すること" },
+      { "op": "expect", "signal": "x_sens3", "value": true, "within_ms": 300, "note": "⑬ 同時に、レーン2のネジ穴3もセンサー(x_sens3)で検出されること(未装着のレーン1・3は検出されない)" },
+      { "op": "expect", "signal": "x_sens2", "value": false, "within_ms": 300, "note": "⑭ 未装着レーン1(x_sens2)は反応しないこと" },
+      { "op": "expect", "signal": "x_sens4", "value": false, "within_ms": 300, "note": "⑮ 未装着レーン3(x_sens4)は反応しないこと" },
+      { "op": "expect", "signal": "var.screw_count", "value": 2, "within_ms": 500, "note": "⑯ 各レーンのSRラッチ→ADD合算でscrew_count(DPL1表示)が2になること" },
+      { "op": "expect", "signal": "ry_rev_contact", "value": true, "after_ms": 2000, "within_ms": 3600, "note": "⑰ 右端LS到達(理論値6.75秒付近)で正転OFF・逆転リレー(RY2)がONへ切替わること" },
+      { "op": "expect", "signal": "ry_fwd_contact", "value": false, "within_ms": 300, "note": "⑱ 正転リレー接点が逆転切替と同時にOFFになっていること(正転/逆転の同時ON無し = インターロック実証)" },
+      { "op": "expect", "signal": "var.screw_count", "value": 2, "within_ms": 300, "note": "⑲ 復路でも同じ2レーンのラッチが保持され、screw_countは2のまま変わらないこと(往路で1回ラッチした本数を表示し続ける仕様)" },
+      { "op": "expect", "signal": "x_ls_left", "value": true, "after_ms": 6300, "within_ms": 7200, "note": "⑳ 左端LSへ帰着すること(理論値13.5秒付近。右端LS到達からさらに約6.75秒後 -- このステップの計測開始はステップ⑲終了時点からのため、右端LS到達直後からの残り時間で判定)" },
+      { "op": "expect", "signal": "ry_rev_contact", "value": false, "within_ms": 300, "note": "㉑ 左端LS到達で逆転リレー接点が300ms以内にOFFになること(全停止)" },
+      { "op": "expect", "signal": "ry_fwd_contact", "value": false, "within_ms": 300, "note": "㉒ 正転リレー接点もOFFのままであること(誤って再起動していないことの確認)" },
+      { "op": "set", "signal": "x_pb2", "value": true, "note": "㉓ PB2(停止)を押してラッチ・カウントをリセットする" },
+      { "op": "expect", "signal": "var.screw_count", "value": 0, "within_ms": 300, "note": "㉔ ネジ検出カウントが0へリセットされること(DPL1表示の確認相当)" },
+      { "op": "set", "signal": "x_pb2", "value": false, "note": "㉕ PB2を離す" },
+      { "op": "reset_jig", "jig": "jig1", "note": "㉖ ジグを原点へ戻し、再試行できる状態にする" }
+    ]
+  }
+}
