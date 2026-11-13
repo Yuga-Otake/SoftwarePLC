@@ -8,13 +8,18 @@ import { EquipmentNode, convDims } from './EquipmentNode';
 import { CameraRig } from './CameraRig';
 import { Gizmo } from './Gizmo';
 import type { LiveState } from './live';
+import { Workpieces } from './Workpieces';
+import { useSimStore } from '../store/simStore';
 
 export interface SceneProps {
   /** 設備 ID → ライブ表示状態 (シミュレーション等から) */
   live?: Record<string, LiveState>;
 }
 
-export function Scene({ live }: SceneProps) {
+export function Scene({ live: liveProp }: SceneProps) {
+  const simLive = useSimStore((s) => s.live);
+  const idle = useSimStore((s) => s.status === 'idle');
+  const live = liveProp ?? simLive;
   const ir = useLineStore((s) => s.ir);
   const selectedId = useLineStore((s) => s.selectedId);
   const select = useLineStore((s) => s.select);
@@ -38,6 +43,7 @@ export function Scene({ live }: SceneProps) {
 
   const selected = ir.equipment.find((e) => e.id === selectedId);
   const gizmoable =
+    idle &&
     selected &&
     (selected.kind === 'conveyor' ||
       selected.kind === 'generic' ||
@@ -85,6 +91,7 @@ export function Scene({ live }: SceneProps) {
         }
         return <EquipmentNode key={e.id} eq={e} selected={e.id === selectedId} live={live?.[e.id]} onSelect={onSelect} />;
       })}
+      <Workpieces />
       {gizmoable && selectedId && <Gizmo key={selectedId} id={selectedId} tick={ir} />}
       <OrbitControls
         makeDefault

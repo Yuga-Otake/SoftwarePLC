@@ -1,3 +1,4 @@
+import { DEFAULTS } from '../library';
 import { describe, expect, it } from 'vitest';
 import type { AIProposal, AIProvider } from '../contracts';
 import { buildStandardLine } from '../demo/standardLine';
@@ -207,7 +208,7 @@ describe('Anthropic プロバイダ', () => {
 
   it('システムプロンプトに既定値が入る', () => {
     expect(SYSTEM_PROMPT).toContain('speedMps=0.2');
-    expect(SYSTEM_PROMPT).toContain('intervalS=3');
+    expect(SYSTEM_PROMPT).toContain(`intervalS=${DEFAULTS.source.intervalS}`);
     expect(SYSTEM_PROMPT).toContain('assume');
     expect(SYSTEM_PROMPT).toContain('propose_semantics');
   });

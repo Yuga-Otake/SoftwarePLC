@@ -6,7 +6,8 @@ import { useUiStore } from './store/uiStore';
 import { Scene } from './scene/Scene';
 import { tabs } from './panels/tabs';
 import { Hud } from './panels/Hud';
-import { RunBar } from './panels/RunBar';
+import { AlarmBanner, RunBar } from './panels/RunBar';
+import { useSimStore } from './store/simStore';
 import './styles.css';
 
 function LineNameField() {
@@ -64,7 +65,6 @@ function TopBar() {
       <button className="top-btn" onClick={newLine}>
         新規
       </button>
-      <RunBar />
     </header>
   );
 }
@@ -76,7 +76,8 @@ function ViewTools() {
   const connected = useLineStore((s) =>
     sel ? s.ir.connections.some((c) => c.from.equipmentId === sel.id || c.to.equipmentId === sel.id) : false,
   );
-  const gizmoable = sel && (sel.kind === 'conveyor' || sel.kind === 'generic' || (sel.kind === 'source' && !connected));
+  const idle = useSimStore((s) => s.status === 'idle');
+  const gizmoable = idle && sel && (sel.kind === 'conveyor' || sel.kind === 'generic' || (sel.kind === 'source' && !connected));
   const modes = [
     ['translate', '移動'],
     ['rotate', '回転'],
@@ -184,10 +185,16 @@ export function App() {
         </Canvas>
       </div>
       <TopBar />
-      <div className="hud-slot">
-        <Hud />
+      <div className="top-stack">
+        <RunBar />
+        <AlarmBanner />
+        <div className="overlay-row">
+          <div className="hud-slot">
+            <Hud />
+          </div>
+          <ViewTools />
+        </div>
       </div>
-      <ViewTools />
       <Sheet />
       <Toasts />
     </div>

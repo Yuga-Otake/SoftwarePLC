@@ -1,5 +1,6 @@
-import { memo, useMemo } from 'react';
-import { BoxGeometry, EdgesGeometry } from 'three';
+import { memo, useMemo, useRef } from 'react';
+import { BoxGeometry, EdgesGeometry, MeshBasicMaterial } from 'three';
+import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import type { ThreeEvent } from '@react-three/fiber';
 import type { Conveyor, Equipment } from '@core/ir';
@@ -31,6 +32,20 @@ function SelectionBox({ size, center }: { size: [number, number, number]; center
     <lineSegments geometry={geo} position={center} renderOrder={20}>
       <lineBasicMaterial color="#38bdf8" depthTest={false} transparent />
     </lineSegments>
+  );
+}
+
+/** 故障設備を赤く点滅させる半透明の箱 */
+function FaultBlink({ size, center }: { size: [number, number, number]; center: [number, number, number] }) {
+  const mat = useRef<MeshBasicMaterial>(null);
+  useFrame(({ clock }) => {
+    if (mat.current) mat.current.opacity = 0.18 + 0.5 * (Math.sin(clock.elapsedTime * 9) > 0 ? 1 : 0);
+  });
+  return (
+    <mesh position={center} renderOrder={15} raycast={() => null}>
+      <boxGeometry args={[size[0] + 0.04, size[1] + 0.04, size[2] + 0.04]} />
+      <meshBasicMaterial ref={mat} color="#ff2a2a" transparent opacity={0.5} depthWrite={false} />
+    </mesh>
   );
 }
 
@@ -116,6 +131,7 @@ export const EquipmentNode = memo(function EquipmentNode({ eq, selected, conv, l
       <Body eq={eq} ghost={ghost} conv={conv} live={live}>
         {children}
       </Body>
+      {live?.fault && <FaultBlink {...sel} />}
       {selected && <SelectionBox {...sel} />}
       {ghost && <Badge position={[sel.center[0], badgeY(eq), 0]} />}
     </>

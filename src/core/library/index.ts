@@ -12,8 +12,8 @@ import type {
 
 export const DEFAULTS = {
   conveyor: { lengthM: 2.0, widthM: 0.4, heightM: 0.8, speedMps: 0.2 },
-  // 既定 3 s: 検査セルが律速になり、仕様変更の効果がサイクルタイムに現れる
-  source: { intervalS: 3, workpiece: { lengthM: 0.2, widthM: 0.2, heightM: 0.15 } },
+  // 既定 2 s: 検査セルが律速になり、仕様変更の効果がサイクルタイムに現れる
+  source: { intervalS: 2, workpiece: { lengthM: 0.2, widthM: 0.2, heightM: 0.15 } },
   sensor: {},
   stopper: { actuationTimeS: 0.3 },
   inspection_station: { inspectTimeS: 2, ngRate: 0.1 },

@@ -46,7 +46,7 @@ export function CameraRig() {
     const H = window.innerHeight;
     const wide = W >= 900;
     const sheetOpen = useUiStore.getState().sheetOpen;
-    const top = 60;
+    const top = 112;
     const availLeft = 0;
     const availRight = wide ? W - 380 : W;
     const availTop = top;
