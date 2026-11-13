@@ -317,3 +317,38 @@ describe('geometry', () => {
     close(conveyorPointToWorld(c, 1), [3, 1.6, 0]);
   });
 });
+
+describe('glb semantics', () => {
+  const glb = { type: 'glb' as const, assetId: 'a1', fit: { position: [0, 0, 0] as [number, number, number], rotationYDeg: 0, scale: 1 } };
+  const base = ok(emptyLine(), [
+    { op: 'add', item: 'generic', id: 'OBJ1', visual: glb, transform: { position: [1, 0, 2], rotationYDeg: 90, scale: 2 } },
+  ]).ir;
+  it('add passes visual through', () => {
+    expect(get(base, 'OBJ1').visual).toEqual(glb);
+  });
+  it('source defaults to ai and honours user', () => {
+    const op = { op: 'propose_semantics', id: 'OBJ1', kind: 'conveyor', params: { lengthM: 1 }, confidence: 0.4, rationale: 'r' } as const;
+    expect(get(ok(base, [op]).ir, 'OBJ1').semantics.source).toBe('ai');
+    expect(get(ok(base, [{ ...op, source: 'user' }]).ir, 'OBJ1').semantics.source).toBe('user');
+  });
+  it('conveyor proposal shifts origin to the infeed end and reject reverses it', () => {
+    const p = ok(base, [{ op: 'propose_semantics', id: 'OBJ1', kind: 'conveyor', params: { lengthM: 1.5 }, confidence: 0.4, rationale: 'r' }]);
+    const c = get(p.ir, 'OBJ1') as Conveyor;
+    // rot 90°, direction (0,0,-1): infeed = centre - dir*L*scale/2 = (1,0,2) + (0,0,1.5)
+    close(c.transform.position, [1, 0, 3.5]);
+    expect(c.visual).toEqual(glb);
+    // the belt centre stays where the generic's centre was
+    close(conveyorPointToWorld(c, 0.75).map((v, i) => (i === 1 ? 0 : v)), [1, 0, 2]);
+    const r = ok(p.ir, [{ op: 'reject_semantics', id: 'OBJ1' }]);
+    close((get(r.ir, 'OBJ1') as never as { transform: { position: number[] } }).transform.position, [1, 0, 2]);
+  });
+  it('non-glb conveyor proposal does not shift', () => {
+    const b = ok(emptyLine(), [{ op: 'add', item: 'generic', id: 'OBJ1', transform: { position: [1, 0, 2] } }]).ir;
+    const p = ok(b, [{ op: 'propose_semantics', id: 'OBJ1', kind: 'conveyor', confidence: 0.4, rationale: 'r' }]);
+    expect((get(p.ir, 'OBJ1') as Conveyor).transform.position).toEqual([1, 0, 2]);
+  });
+  it('update passes glb visual (fit) through', () => {
+    const p = ok(base, [{ op: 'update', id: 'OBJ1', visual: { ...glb, fit: { ...glb.fit, rotationYDeg: 90 } } }]);
+    expect((get(p.ir, 'OBJ1').visual as typeof glb).fit.rotationYDeg).toBe(90);
+  });
+});

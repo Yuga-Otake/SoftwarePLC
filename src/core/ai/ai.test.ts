@@ -213,6 +213,11 @@ describe('Anthropic プロバイダ', () => {
     expect(SYSTEM_PROMPT).toContain('propose_semantics');
   });
 
+  it('glb の手掛かりは meta (fileName/sizeM/nodeNames) と name に限定される', () => {
+    for (const k of ['visual.meta.fileName', 'visual.meta.sizeM', 'visual.meta.nodeNames', 'params.lengthM', 'params.heightM'])
+      expect(SYSTEM_PROMPT).toContain(k);
+  });
+
   const kindOf = async (status: number, body: unknown) => {
     const p = createAnthropicProvider({ apiKey: 'k', fetchImpl: mockFetch(status, body).fn });
     try {
