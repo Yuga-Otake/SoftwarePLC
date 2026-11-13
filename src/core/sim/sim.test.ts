@@ -24,7 +24,7 @@ function run(ir: LineIR, durationS: number, seed = 1) {
 
 describe('標準ライン', () => {
   it('120 s 流すと供給間隔 (5 s) で完成品が出る', () => {
-    const sim = run(buildStandardLine(), 120);
+    const sim = run(withSource(buildStandardLine(), 5), 120);
     const s = sim.snapshot();
     console.log('standard metrics', JSON.stringify(s.metrics));
     expect(s.metrics.completed).toBeGreaterThan(15);
