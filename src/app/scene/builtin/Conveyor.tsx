@@ -1,5 +1,6 @@
-import { useMemo } from 'react';
-import { Shape, ShapeGeometry } from 'three';
+import { useMemo, useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
+import { Group, Shape, ShapeGeometry } from 'three';
 import type { Conveyor } from '@core/ir';
 import { getMats } from './materials';
 import type { BuiltinProps } from './props';
@@ -22,7 +23,7 @@ function useChevronGeometry() {
   }, []);
 }
 
-export function ConveyorMesh({ eq, ghost, children }: BuiltinProps<Conveyor> & { children?: React.ReactNode }) {
+export function ConveyorMesh({ eq, ghost, live, children }: BuiltinProps<Conveyor> & { children?: React.ReactNode }) {
   const { lengthM: L, widthM: W, heightM: H } = eq.params;
   const m = getMats(ghost);
   const chev = useChevronGeometry();
@@ -30,6 +31,20 @@ export function ConveyorMesh({ eq, ghost, children }: BuiltinProps<Conveyor> & {
   const legCount = Math.max(2, Math.round(L / 1.2) + 1);
   const legH = Math.max(0.05, H - RAIL_H + 0.02);
   const chevrons = Math.max(1, Math.floor(L / 0.3));
+  const chevRef = useRef<Group>(null);
+  const phase = useRef(0);
+  const running = !!live?.running;
+  const speed = eq.params.speedMps;
+  useFrame((_, dt) => {
+    const g = chevRef.current;
+    if (!g) return;
+    if (running) phase.current = (phase.current + speed * Math.min(dt, 0.1)) % L;
+    else if (phase.current === 0) return;
+    const sp = L / chevrons;
+    g.children.forEach((ch, i) => {
+      ch.position.x = (sp * (i + 0.5) + phase.current) % L;
+    });
+  });
 
   return (
     <group>
@@ -68,9 +83,11 @@ export function ConveyorMesh({ eq, ghost, children }: BuiltinProps<Conveyor> & {
         );
       })}
       {/* 搬送方向 (+X) の矢印 */}
-      {Array.from({ length: chevrons }, (_, i) => (
-        <mesh key={i} position={[(L * (i + 0.5)) / chevrons, H + 0.004, 0]} geometry={chev} material={m.chevron} />
-      ))}
+      <group ref={chevRef}>
+        {Array.from({ length: chevrons }, (_, i) => (
+          <mesh key={i} position={[(L * (i + 0.5)) / chevrons, H + 0.004, 0]} geometry={chev} material={m.chevron} />
+        ))}
+      </group>
       {children}
     </group>
   );

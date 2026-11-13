@@ -9,4 +9,6 @@ export interface LiveState {
   detecting?: boolean;
   /** 故障などで赤点滅させる */
   fault?: boolean;
+  /** コンベヤのモータが回っている (矢印を動かす) */
+  running?: boolean;
 }
