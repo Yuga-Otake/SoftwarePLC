@@ -18,6 +18,11 @@ export function lineBounds(ir: LineIR): { center: Vector3; radius: number } {
       pts.push(new Vector3(a[0], a[1], a[2]), new Vector3(b[0], b[1], b[2]));
     } else if ('transform' in e) {
       pts.push(new Vector3(...e.transform.position));
+      if (e.visual.type === 'glb' && e.visual.meta) {
+        const r = (Math.max(e.visual.meta.sizeM[0], e.visual.meta.sizeM[2]) / 2) * e.transform.scale * e.visual.fit.scale;
+        const [x, y, z] = e.transform.position;
+        pts.push(new Vector3(x - r, y, z - r), new Vector3(x + r, y, z + r));
+      }
     }
   }
   if (pts.length === 0) return { center: new Vector3(0, 0.3, 0), radius: 2 };

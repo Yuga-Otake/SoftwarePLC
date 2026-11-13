@@ -12,6 +12,9 @@ import { StopperMesh } from './builtin/Stopper';
 import { InspectionStationMesh } from './builtin/InspectionStation';
 import { GenericMesh } from './builtin/Generic';
 import type { ConvDims } from './builtin/props';
+import { ConveyorOverlay, GlbVisual, useGlbInfo } from './GlbVisual';
+import type { GlbInfo } from './GlbVisual';
+import { useUiStore } from '../store/uiStore';
 
 const DEG = Math.PI / 180;
 
@@ -57,7 +60,15 @@ function Badge({ position }: { position: [number, number, number] }) {
   );
 }
 
-function selectionFor(eq: Equipment, conv?: ConvDims): { size: [number, number, number]; center: [number, number, number] } {
+function selectionFor(
+  eq: Equipment,
+  conv?: ConvDims,
+  glb?: GlbInfo | null,
+): { size: [number, number, number]; center: [number, number, number] } {
+  if (glb) {
+    const { size, center } = glb.placement;
+    return { size: [size[0] + 0.04, size[1] + 0.04, size[2] + 0.04], center };
+  }
   const W = conv?.widthM ?? 0.4;
   switch (eq.kind) {
     case 'conveyor':
@@ -78,7 +89,8 @@ function selectionFor(eq: Equipment, conv?: ConvDims): { size: [number, number, 
   }
 }
 
-function badgeY(eq: Equipment): number {
+function badgeY(eq: Equipment, glb?: GlbInfo | null): number {
+  if (glb) return glb.placement.center[1] + glb.placement.size[1] / 2 + 0.25;
   switch (eq.kind) {
     case 'conveyor':
       return eq.params.heightM + 0.35;
@@ -121,19 +133,35 @@ function Body({ eq, ghost, conv, live, children }: { eq: Equipment; ghost: boole
  */
 export const EquipmentNode = memo(function EquipmentNode({ eq, selected, conv, live, onSelect, children }: EquipmentNodeProps) {
   const ghost = eq.semantics.status === 'proposed';
+  const glb = useGlbInfo(eq);
+  const preview = useUiStore((s) => (s.preview && s.preview.id === eq.id ? s.preview : null));
   const handle = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
     onSelect?.(eq.id);
   };
-  const sel = selectionFor(eq, conv);
+  const sel = selectionFor(eq, conv, glb);
+  const showOverlay = eq.kind === 'conveyor' && !!glb && (selected || ghost);
   const body = (
     <>
-      <Body eq={eq} ghost={ghost} conv={conv} live={live}>
-        {children}
-      </Body>
+      {glb ? (
+        <>
+          <GlbVisual info={glb} ghost={ghost} />
+          {children}
+        </>
+      ) : (
+        <Body eq={eq} ghost={ghost} conv={conv} live={live}>
+          {children}
+        </Body>
+      )}
+      {showOverlay && eq.kind === 'conveyor' && (
+        <ConveyorOverlay lengthM={eq.params.lengthM} widthM={eq.params.widthM} heightM={eq.params.heightM} />
+      )}
+      {preview && glb && eq.kind === 'generic' && (
+        <ConveyorOverlay lengthM={preview.lengthM} widthM={preview.widthM} heightM={preview.heightM} originX={-preview.lengthM / 2} />
+      )}
       {live?.fault && <FaultBlink {...sel} />}
       {selected && <SelectionBox {...sel} />}
-      {ghost && <Badge position={[sel.center[0], badgeY(eq), 0]} />}
+      {ghost && <Badge position={[sel.center[0], badgeY(eq, glb), sel.center[2]]} />}
     </>
   );
 

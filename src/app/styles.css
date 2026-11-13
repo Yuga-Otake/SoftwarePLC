@@ -309,3 +309,39 @@ button:disabled { cursor: default; opacity: 0.4; }
 .warn-note { color: var(--warn); }
 .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--accent); border-right-color: transparent; border-radius: 50%; vertical-align: -2px; animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ───── glb ───── */
+.glb-missing {
+  padding: 2px 8px; border-radius: 8px; font-size: 12px; white-space: nowrap;
+  background: #46330c; color: var(--warn); border: 1px solid #6b4d12;
+}
+.overlay-tag {
+  padding: 1px 8px; border-radius: 8px; font-size: 12px; white-space: nowrap; font-weight: 600;
+  background: rgba(70, 51, 12, 0.85); color: #ffb020;
+}
+
+/* ───── library (3D model / my equipment) ───── */
+.lib-wrap { display: flex; flex-direction: column; gap: 8px; }
+.lib-h { margin: 10px 0 0; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; color: var(--muted); }
+.lib-upload { border-color: var(--accent); }
+.user-card { padding: 0; gap: 0; overflow: hidden; }
+.lib-main {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 12px;
+  background: none; border: 0; text-align: left;
+}
+.lib-main:active { background: var(--accent-bg); }
+.lib-del { flex: none; width: 52px; min-height: 56px; background: none; border: 0; border-left: 1px solid var(--border); }
+
+/* ───── semantics wizard ───── */
+.wiz { display: flex; flex-direction: column; gap: 8px; }
+.wiz-suggest { padding: 8px 10px; border-radius: 10px; background: var(--panel-2); border: 1px solid var(--border); font-size: 13px; }
+.wiz-suggest b { color: var(--text); }
+.wiz-warn { color: var(--warn); font-size: 13px; margin: 2px 0; font-weight: 600; }
+.chip-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.chip {
+  min-height: 44px; padding: 4px 8px; border-radius: 10px; border: 1px solid var(--border); background: var(--panel-2); font-size: 14px;
+}
+.chip.active { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.chip small { display: block; color: var(--muted); font-size: 11px; }
+.src-tag { font-size: 11px; color: var(--muted); display: block; text-align: right; margin-top: -4px; }
+.src-tag.edited { color: var(--ok); }

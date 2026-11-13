@@ -3,6 +3,7 @@ import { validate } from '@core/ir';
 import type { Equipment, PatchOp } from '@core/ir';
 import { useLineStore } from '../store/lineStore';
 import { useUiStore } from '../store/uiStore';
+import { GlbEquipmentActions, GlbFitEditor, SemanticsWizard } from './SemanticsWizard';
 import { AXIS_LABEL, KIND_LABEL, NumberField, ROLE_LABEL, Row, Section } from './ui';
 
 function run(ops: PatchOp[], label: string) {
@@ -308,6 +309,9 @@ function EquipmentProps({ eq }: { eq: Equipment }) {
         )}
       </Section>
 
+      {eq.kind === 'generic' && eq.visual.type === 'glb' && <SemanticsWizard eq={eq} />}
+      {eq.kind !== 'generic' && eq.visual.type === 'glb' && <GlbEquipmentActions eq={eq} />}
+
       {(eq.kind !== 'sensor' && eq.kind !== 'generic') && (
         <Section title="パラメータ">
           <ParamsEditor eq={eq} />
@@ -323,6 +327,8 @@ function EquipmentProps({ eq }: { eq: Equipment }) {
           <TransformEditor eq={eq} />
         </Section>
       )}
+
+      {eq.visual.type === 'glb' && <GlbFitEditor eq={eq} />}
 
       <Section title={`I/O (${eq.io.length})`}>
         {eq.io.length === 0 ? (

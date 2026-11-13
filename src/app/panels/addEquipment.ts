@@ -1,9 +1,16 @@
-import type { Equipment, LibraryItemId, PatchOp } from '@core/ir';
+import type { Equipment, LibraryItemId, PatchOp, Semantics, Visual } from '@core/ir';
 import { useLineStore } from '../store/lineStore';
 import { useUiStore } from '../store/uiStore';
 
-/** ライブラリ項目をスマートな既定位置へ追加する */
-export function addFromLibrary(item: LibraryItemId) {
+export interface AddExtras {
+  name?: string;
+  params?: Record<string, unknown>;
+  visual?: Visual;
+  semantics?: Semantics;
+}
+
+/** ライブラリ項目をスマートな既定位置へ追加する。extras はマイ設備などが主設備に重ねる指定 */
+export function addFromLibrary(item: LibraryItemId, extras: AddExtras = {}) {
   const { ir, selectedId, dispatch, select } = useLineStore.getState();
   const ui = useUiStore.getState();
   const convs = ir.equipment.filter((e): e is Extract<Equipment, { kind: 'conveyor' }> => e.kind === 'conveyor');
@@ -57,6 +64,14 @@ export function addFromLibrary(item: LibraryItemId) {
     }
   }
 
+  // 主設備 (最初の add) に追加指定を重ねる
+  const first = ops.find((o) => o.op === 'add');
+  if (first && first.op === 'add') {
+    if (extras.name) first.name = extras.name;
+    if (extras.params && Object.keys(extras.params).length) first.params = extras.params;
+    if (extras.visual) first.visual = extras.visual;
+    if (extras.semantics) first.semantics = extras.semantics;
+  }
   const res = dispatch(ops, '設備を追加');
   if (res.errors.length) {
     ui.toast(res.errors[0], 'error');

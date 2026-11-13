@@ -38,7 +38,7 @@ interface UiState {
 let nextToast = 1;
 
 export const useUiStore = create<UiState>((set, get) => ({
-  activeTab: 'library',
+  activeTab: 'chat',
   sheetOpen: true,
   gizmoMode: 'translate',
   toasts: [],

@@ -50,7 +50,7 @@ function parseGltf(bytes: ArrayBuffer): Promise<Group> {
       input,
       '',
       (gltf) => resolve(gltf.scene),
-      (err) => reject(new AssetError(`モデルを読み込めませんでした (${(err as Error)?.message ?? err})`)),
+      (err) => reject(new AssetError(`モデルを読み込めませんでした (${(err as unknown as { message?: string })?.message ?? String(err)})`)),
     );
   });
 }
