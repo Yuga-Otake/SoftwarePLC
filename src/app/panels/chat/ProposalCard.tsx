@@ -150,6 +150,7 @@ export function ProposalCard({ msg }: { msg: ProposalMessage }) {
   const hasProblems = msg.errors.length > 0 || msg.issues.length > 0;
   const statusRef = useRef<HTMLDivElement>(null);
   const prevState = useRef(msg.state);
+  const liveEquipment = useLineStore((s) => s.ir.equipment);
   useEffect(() => {
     // 適用した瞬間は、適用済みの表示 (仮定の承認欄) が見えるようにスクロールする
     if (prevState.current === 'pending' && msg.state === 'applied') {
@@ -202,7 +203,7 @@ export function ProposalCard({ msg }: { msg: ProposalMessage }) {
       {msg.state === 'applied' && (
         <>
           <div className="pc-status ok" ref={statusRef}>✔ 適用済み</div>
-          {msg.created && msg.created.length > 0 && (
+          {msg.created && msg.created.some((r) => liveEquipment.some((e) => e.id === r.equipmentId)) && (
             <div className="pc-section">
               <h4>AIの仮定を確認</h4>
               <ul className="pc-list plain">

@@ -64,8 +64,20 @@ export const Visual = z.discriminatedUnion('type', [
     type: z.literal('glb'),
     /** IndexedDB 上のアセット ID */
     assetId: z.string(),
-    /** 設備ローカル座標に対するモデルの補正 */
+    /**
+     * 種別ごとの自動配置 (コンベヤ: 外形の中心を搬送長の中央・底面を床へ / その他: 中心を原点・底面を基準面へ)
+     * の上に重ねる、人による補正。rotationYDeg でモデルに対する搬送方向を選ぶ。
+     */
     fit: Transform,
+    /** アップロード時に取得した手掛かり。AI が推定に使ってよいのはこれと name だけ */
+    meta: z
+      .object({
+        fileName: z.string(),
+        /** モデル外形 (m, モデル座標 X/Y/Z) */
+        sizeM: Vec3,
+        nodeNames: z.array(z.string()),
+      })
+      .optional(),
   }),
 ]);
 export type Visual = z.infer<typeof Visual>;
@@ -293,6 +305,8 @@ export const PatchOp = z.discriminatedUnion('op', [
     mount: Mount.optional(),
     confidence: z.number().min(0).max(1),
     rationale: z.string(),
+    /** 誰の判断か。省略時 'ai' */
+    source: z.enum(['ai', 'user']).optional(),
   }),
   z.object({ op: z.literal('confirm_semantics'), id: z.string() }),
   z.object({ op: z.literal('reject_semantics'), id: z.string() }),
