@@ -466,6 +466,13 @@ function opDisconnect(ctx: Ctx, op: Extract<Op, { op: 'disconnect' }>) {
 
 /* ───────── semantics ───────── */
 
+/** transform を搬送方向へ sign * (lengthM * scale) / 2 だけ平行移動する (glb コンベヤの原点補正) */
+function shiftAlongConveyor(t: Transform, lengthM: number, sign: 1 | -1) {
+  const th = (t.rotationYDeg * Math.PI) / 180;
+  const d = (sign * lengthM * t.scale) / 2;
+  t.position = [round(t.position[0] + Math.cos(th) * d), t.position[1], round(t.position[2] - Math.sin(th) * d)];
+}
+
 function opPropose(ctx: Ctx, op: Extract<Op, { op: 'propose_semantics' }>) {
   const idx = ctx.d.equipment.findIndex((e) => e.id === op.id);
   if (idx < 0) fail(`設備 ${op.id} が見つかりません`);
@@ -477,7 +484,7 @@ function opPropose(ctx: Ctx, op: Extract<Op, { op: 'propose_semantics' }>) {
   const built = getLibraryItem(item).build({ idPrefix: op.id, name: target.name, params: op.params })[0] as AnyRec;
   built.name = target.name;
   built.visual = clone(target.visual);
-  built.semantics = { status: 'proposed', source: 'ai', confidence: op.confidence, rationale: op.rationale };
+  built.semantics = { status: 'proposed', source: op.source ?? 'ai', confidence: op.confidence, rationale: op.rationale };
 
   if (kind === 'sensor' || kind === 'stopper' || kind === 'inspection_station') {
     if (!op.mount) fail(`${kind} の提案には mount が必要です`);
@@ -496,6 +503,10 @@ function opPropose(ctx: Ctx, op: Extract<Op, { op: 'propose_semantics' }>) {
     }
   } else {
     built.transform = clone((target as { transform: Transform }).transform);
+    // glb の generic は原点が外形の中心、コンベヤは搬入端。見た目が飛ばないよう原点を搬入端側へずらす
+    if (kind === 'conveyor' && target.visual.type === 'glb') {
+      shiftAlongConveyor(built.transform as Transform, Number((built.params as AnyRec).lengthM), -1);
+    }
   }
   const eq = parseEquipment(built);
   ctx.d.equipment[idx] = eq;
@@ -536,6 +547,7 @@ function opReject(ctx: Ctx, op: Extract<Op, { op: 'reject_semantics' }>) {
     const pos = conv && conv.kind === 'conveyor' ? conveyorPointToWorld(conv, eq.mount.offsetM) : ([0, 0, 0] as Vec3);
     transform = { position: pos, rotationYDeg: conv && 'transform' in conv ? conv.transform.rotationYDeg : 0, scale: 1 };
   }
+  if (eq.kind === 'conveyor' && eq.visual.type === 'glb') shiftAlongConveyor(transform, eq.params.lengthM, 1);
   const generic = parseEquipment({
     kind: 'generic',
     id: eq.id,
