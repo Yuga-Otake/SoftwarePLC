@@ -1,0 +1,99 @@
+/* チャット。シート本文の padding を打ち消し、入力欄を下端に固定する */
+.chat {
+  display: flex; flex-direction: column; min-height: 0;
+  margin: -12px -12px 0;
+  height: calc(100% + 28px + var(--safe-b));
+}
+.chat-modebar {
+  flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 0 8px 0 12px; border-bottom: 1px solid var(--border);
+}
+.chat-mode {
+  flex: 1 1 auto; min-width: 0; min-height: 44px; display: flex; align-items: center; gap: 8px;
+  background: none; border: 0; padding: 0; text-align: left; font-size: 13px; font-weight: 600;
+}
+.chat-mode .dot { flex: none; width: 10px; height: 10px; border-radius: 50%; }
+.chat-mode.ai { color: var(--ok); }
+.chat-mode.ai .dot { background: var(--ok); }
+.chat-mode.demo { color: var(--warn); }
+.chat-mode.demo .dot { background: var(--warn); }
+.chat-mode-text { min-width: 0; line-height: 1.25; }
+.chat-gear { flex: none; color: var(--muted); font-size: 16px; }
+.chat-modebar .link { flex: none; font-size: 13px; color: var(--muted); }
+
+.chat-settings { flex: none; max-height: 60%; overflow-y: auto; padding: 8px 12px 10px; border-bottom: 1px solid var(--border); background: var(--panel-2); }
+.chat-label { display: block; font-size: 12px; color: var(--muted); margin: 4px 0; }
+.chat-key-row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+.chat-key-row .text-input { flex: 1 1 0; width: auto; }
+.chat-key-mask { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+
+.chat-messages {
+  position: relative; flex: 1 1 0; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain;
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; scroll-behavior: smooth;
+}
+.bubble { max-width: 92%; padding: 8px 12px; border-radius: 14px; overflow-wrap: anywhere; white-space: pre-wrap; font-size: 14px; }
+.bubble.user { align-self: flex-end; background: var(--accent-bg); border: 1px solid #14516f; border-bottom-right-radius: 4px; }
+.bubble.ai { align-self: flex-start; background: var(--panel-2); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+.bubble.card { max-width: 100%; width: 100%; white-space: normal; padding: 10px; }
+.bubble.err { align-self: flex-start; background: #2a1719; border: 1px solid #7a2f2f; color: #ffb4b1; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.bubble.thinking { color: var(--muted); }
+.dots { animation: chat-blink 1.1s infinite; }
+@keyframes chat-blink { 50% { opacity: 0.2; } }
+
+.chat-welcome { display: flex; flex-direction: column; gap: 2px; }
+.chat-welcome-title { margin: 4px 0; font-weight: 600; }
+.chat-welcome-chips { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+
+.chat-composer { flex: none; border-top: 1px solid var(--border); background: var(--panel); padding: 6px 8px calc(8px + var(--safe-b)); }
+.chat-chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-bottom: 4px; }
+.chat-chips::-webkit-scrollbar { display: none; }
+.chat-chip {
+  flex: none; min-height: 44px; padding: 0 14px; border-radius: 22px; white-space: nowrap; font-size: 13px;
+  background: var(--panel-2); border: 1px solid var(--border); color: var(--accent);
+}
+.chat-chip.wrap { white-space: normal; text-align: left; border-radius: 12px; padding: 8px 14px; line-height: 1.35; }
+.chat-input-row { display: flex; gap: 6px; align-items: flex-end; }
+.chat-input-row textarea {
+  flex: 1 1 0; min-width: 0; min-height: 44px; max-height: 112px; resize: none; padding: 10px 12px;
+  border-radius: 12px; border: 1px solid var(--border); background: var(--bg); font-size: 16px; line-height: 1.35;
+}
+.chat-input-row textarea:focus { outline: none; border-color: var(--accent); }
+.chat-send { flex: none; min-width: 64px; }
+
+/* 変更カード */
+.pc-reply { white-space: pre-wrap; margin-bottom: 4px; }
+.pc-section { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); }
+.pc-section h4 { margin: 0 0 4px; font-size: 12px; letter-spacing: 0.04em; color: var(--muted); }
+.pc-group { margin-bottom: 6px; }
+.pc-group-head { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; }
+.pc-count { color: var(--muted); font-weight: 400; }
+.pc-marker { width: 10px; height: 10px; border-radius: 3px; background: var(--muted); }
+.pc-group-head.add .pc-marker { background: var(--ok); }
+.pc-group-head.upd .pc-marker { background: var(--accent); }
+.pc-group-head.del .pc-marker { background: var(--error); }
+.pc-list { margin: 2px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 3px; font-size: 13px; }
+.pc-list li { padding-left: 10px; border-left: 2px solid var(--border); overflow-wrap: anywhere; }
+.pc-list li.add { border-left-color: var(--ok); }
+.pc-list li.upd { border-left-color: var(--accent); }
+.pc-list li.del { border-left-color: var(--error); }
+.pc-list.plain { gap: 8px; }
+.pc-list.plain li { border-left-color: var(--warn); }
+.pc-asm-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pc-asm-text { min-width: 0; }
+.pc-asm-btns { display: flex; gap: 6px; flex: none; }
+.pc-eq { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; background: var(--bg); border-radius: 4px; padding: 1px 5px; }
+.pc-val { font-weight: 700; margin-left: 8px; font-variant-numeric: tabular-nums; }
+.pc-edit { display: flex; gap: 8px; align-items: center; margin-top: 6px; flex-wrap: wrap; }
+.pc-banner { font-size: 13px; padding: 6px 10px; border-radius: 8px; margin-top: 4px; overflow-wrap: anywhere; }
+.pc-banner.warn { background: #2a2010; border: 1px solid #6b4d12; color: var(--warn); }
+.pc-banner.error { background: #2a1719; border: 1px solid #7a2f2f; color: var(--error); }
+.pc-actions { display: flex; gap: 8px; margin-top: 10px; }
+.pc-actions .btn.primary { flex: 1; }
+.pc-status { margin-top: 8px; font-size: 13px; }
+.pc-status.ok { color: var(--ok); font-weight: 600; }
+.pc.discarded .pc-reply { opacity: 0.6; }
+
+/* チャット表示中は、スマホではシートを高くして会話と変更カードを読みやすくする */
+@media (max-width: 899px) {
+  .sheet.open:has(.chat) { height: 62vh; height: 62dvh; }
+}

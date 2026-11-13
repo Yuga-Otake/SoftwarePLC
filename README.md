@@ -1,48 +1,27 @@
-# Software PLC
+# Conversational Factory Builder
 
-ブラウザで動く、ソフトウェアPLC（Programmable Logic Controller）の探索・実験プラットフォーム。
-ブロック（ファンクションブロック図 / FBD）を組み合わせて自動化ロジックを作り、状態がリアルタイムで流れる様子を視覚的に確認できます。
+自然言語で量産ラインを設計し、3D で構築・シミュレーションするブラウザアプリです。スマホ縦画面を第一に想定しています。目指す体験は [docs/DEMO.md](docs/DEMO.md)、設計と実装順序は [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) を参照してください。
 
-## 構成
-
-- **backend/**: Python (FastAPI) — PLC実行エンジン、REST API、WebSocket、AIアシスタント
-- **frontend/**: React + Reactflow — ビジュアルキャンバス、I/Oパネル、AIパネル
-- **examples/**: サンプルプログラム（スタート/ストップ回路など）
-
-## 起動方法
-
-### 1. バックエンド (FastAPI)
+## コマンド
 
 ```bash
-cd backend
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
-```
-
-→ `http://localhost:8000` で起動します。
-
-AIアシスタント機能を使う場合は、`backend/.env.example` を `backend/.env` にコピーして
-`ANTHROPIC_API_KEY` を設定してください（任意。未設定でもPLC本体は動作します）。
-
-### 2. フロントエンド (Vite + React)
-
-別のターミナルで：
-
-```bash
-cd frontend
 npm install
-npm run dev
+npm run dev      # 開発サーバ
+npm test         # vitest
+npm run build    # 型チェック + ビルド
+npm run preview  # ビルド結果のプレビュー
 ```
 
-→ `http://localhost:5173` をブラウザで開いてください。
-（Vite の dev サーバーが `/api` と `/ws` を `http://localhost:8000` にプロキシします）
+## 公開
 
-## 確認できること
+GitHub Pages へ自動公開されます。リポジトリの Settings → Pages → Source を "GitHub Actions" に設定し、`main` へマージすると `.github/workflows/pages.yml` がビルドして公開します。URL は `https://<ユーザー名>.github.io/<リポジトリ名>/` です。
 
-- 起動すると「スタート/ストップ回路」のサンプルが自動で読み込まれます
-- 下部の I/O パネルで `X0 Start` / `X1 Stop` をクリックして ON/OFF を切り替えられます
-- X0 を ON にすると、SR ラッチ → モーター出力 (Y0) が緑色でアクティブになり、接続線がアニメーションします
-- 同時に TON タイマーが動き出し、3秒後に Y1 (Done) が点灯します
-- 上部のパレットからブロックをドラッグ＆ドロップしてキャンバスに追加できます
-- 右側の AI パネルで「X1がONになったら3秒後にY1を点灯させて」のように指示すると、AIがブロックを提案します（要 `ANTHROPIC_API_KEY`）
-- 最下部のステータスバーでスキャン周期の使用率・メモリ使用量を確認できます
+## E2E
+
+デモモード（APIキーなし）でデモの主要シーンを通すスモークテストです（Playwright が必要）。
+
+```bash
+npm run build && npm run e2e
+```
+
+失敗時のスクリーンショットは `e2e/artifacts/` に保存されます。CI（`.github/workflows/ci.yml`）でも実行されます。
