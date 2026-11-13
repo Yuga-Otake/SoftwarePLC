@@ -107,3 +107,6 @@ useLineStore.subscribe((s) => {
     /* ignore */
   }
 });
+
+// 開発時のみ: デバッグ/自動テスト用にストアを公開
+if (import.meta.env.DEV && typeof window !== 'undefined') (window as unknown as Record<string, unknown>).__lineStore = useLineStore;
