@@ -106,6 +106,11 @@ function Sheet() {
   const setTab = useUiStore((s) => s.setTab);
   const setOpen = useUiStore((s) => s.setSheetOpen);
   const drag = useRef<{ y: number; moved: boolean } | null>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const selectedId = useLineStore((s) => s.selectedId);
+  useEffect(() => {
+    bodyRef.current?.scrollTo(0, 0);
+  }, [activeTab, selectedId]);
   const Active = (tabs.find((t) => t.id === activeTab) ?? tabs[0]).component;
 
   return (
@@ -148,7 +153,7 @@ function Sheet() {
           </button>
         ))}
       </nav>
-      <div className="sheet-body">
+      <div className="sheet-body" ref={bodyRef}>
         <Active />
       </div>
     </aside>
@@ -170,8 +175,9 @@ function Toasts() {
 
 export function App() {
   const select = useLineStore((s) => s.select);
+  const sheetOpen = useUiStore((s) => s.sheetOpen);
   return (
-    <div className="app">
+    <div className={`app${sheetOpen ? '' : ' sheet-closed'}`}>
       <div className="canvas-wrap">
         <Canvas camera={{ position: [4, 3.5, 5], fov: 45 }} dpr={[1, 2]} onPointerMissed={() => select(null)}>
           <Scene />

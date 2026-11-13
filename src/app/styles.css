@@ -116,10 +116,11 @@ button:disabled { cursor: default; opacity: 0.4; }
 
 /* ───── toasts ───── */
 .toasts {
-  position: absolute; z-index: 20; left: 0; right: 0; top: calc(var(--topbar-h) + var(--safe-t) + 8px);
+  position: absolute; z-index: 20; left: 0; right: 0; bottom: calc(45dvh + 10px);
   display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; padding: 0 16px;
 }
-@media (min-width: 900px) { .toasts { right: var(--sheet-w); } }
+.sheet-closed .toasts { bottom: calc(86px + var(--safe-b)); }
+@media (min-width: 900px) { .toasts, .sheet-closed .toasts { right: var(--sheet-w); bottom: 20px; } }
 .toast {
   pointer-events: auto; max-width: 100%; padding: 10px 14px; border-radius: 10px; font-size: 14px;
   background: #223041; border: 1px solid var(--border); box-shadow: 0 6px 18px rgba(0,0,0,0.4);
@@ -200,3 +201,4 @@ button:disabled { cursor: default; opacity: 0.4; }
   font-weight: 800; font-size: 18px; display: flex; align-items: center; justify-content: center;
   box-shadow: 0 2px 8px rgba(0,0,0,0.5); user-select: none;
 }
+.issue:disabled { opacity: 1; cursor: default; }
