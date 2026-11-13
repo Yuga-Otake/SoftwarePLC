@@ -7,7 +7,19 @@ export interface Toast {
   kind: 'info' | 'error';
 }
 
+/** 意味付けウィザードの一時プレビュー (IR には入れない) */
+export interface SemanticsPreview {
+  id: string;
+  /** モデルをコンベヤの +X に合わせる回転 (fit.rotationYDeg 相当) */
+  rotationYDeg: number;
+  lengthM: number;
+  widthM: number;
+  heightM: number;
+}
+
 interface UiState {
+  preview: SemanticsPreview | null;
+  setPreview: (p: SemanticsPreview | null) => void;
   activeTab: string;
   sheetOpen: boolean;
   gizmoMode: GizmoMode;
@@ -31,6 +43,8 @@ export const useUiStore = create<UiState>((set, get) => ({
   gizmoMode: 'translate',
   toasts: [],
   fitNonce: 0,
+  preview: null,
+  setPreview: (p) => set({ preview: p }),
   setTab: (id) => set({ activeTab: id }),
   setSheetOpen: (open) => set({ sheetOpen: open }),
   toggleSheet: () => set((s) => ({ sheetOpen: !s.sheetOpen })),
