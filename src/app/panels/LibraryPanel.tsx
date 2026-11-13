@@ -6,6 +6,7 @@ import { KIND_EMOJI, KIND_LABEL } from "./ui";
 import { addModelFromFile, addSampleModel } from "../assets/addModel";
 import { useUserLibrary } from "../assets/userLibrary";
 import type { UserLibraryEntry } from "../assets/userLibrary";
+import { CAD_CATEGORIES, CAD_SOURCES } from "../assets/cadSources";
 
 function addUserEntry(e: UserLibraryEntry) {
   const item: LibraryItemId =
@@ -149,6 +150,48 @@ export function LibraryPanel() {
           </p>
         </>
       )}
+
+      <h3 className="lib-h">メーカーの3D CADを入手</h3>
+      <p className="muted">
+        各社の公式ページを新しいタブで開きます。CAD データは再配布不可のため本アプリには同梱していません。
+      </p>
+      {CAD_CATEGORIES.map((cat) => (
+        <div key={cat} className="cad-group">
+          <div className="cad-cat">{cat}</div>
+          <div className="lib-grid">
+            {CAD_SOURCES.filter((c) => c.category === cat).map((c) => (
+              <a
+                key={c.name}
+                className="lib-card cad-card"
+                href={c.url}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <span className="lib-text">
+                  <span className="lib-label">{c.name}</span>
+                  <span className="lib-desc">
+                    {c.formats} ・ {c.note}
+                  </span>
+                </span>
+                <span className="lib-add" aria-hidden>
+                  ↗
+                </span>
+              </a>
+            ))}
+          </div>
+        </div>
+      ))}
+      <ol className="cad-steps">
+        <li>
+          メーカーサイトで型式を選び、STEP などをダウンロードします (利用規約は各社に従ってください。再配布不可のため本アプリには同梱していません)。
+        </li>
+        <li>
+          GLB に変換します。無料の方法: FreeCAD で STEP を開き「ファイル → エクスポート」で .glb を保存 / Open Cascade の CAD Assistant で STEP を開き glTF/GLB へエクスポート。
+        </li>
+        <li>
+          上の「3Dモデルを追加 (GLB)」でアップロードし、「設備として使う」で種別・搬送方向を確認して確定します。アップロードしたファイルはこのブラウザ内にだけ保存されます。
+        </li>
+      </ol>
     </div>
   );
 }

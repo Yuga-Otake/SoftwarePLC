@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
+import { SHADOWS_ON } from './perf';
 import { buildStandardLine } from '@core/demo/standardLine';
 import { useLineStore } from './store/lineStore';
 import { useUiStore } from './store/uiStore';
@@ -180,7 +181,7 @@ export function App() {
   return (
     <div className={`app${sheetOpen ? '' : ' sheet-closed'}`}>
       <div className="canvas-wrap">
-        <Canvas camera={{ position: [4, 3.5, 5], fov: 45 }} dpr={[1, 2]} onPointerMissed={() => select(null)}>
+        <Canvas shadows={SHADOWS_ON} camera={{ position: [4, 3.5, 5], fov: 45 }} dpr={[1, 2]} onPointerMissed={() => select(null)}>
           <Scene />
         </Canvas>
       </div>

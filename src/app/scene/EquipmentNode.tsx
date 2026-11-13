@@ -76,14 +76,20 @@ function selectionFor(
         size: [eq.params.lengthM + 0.05, eq.params.heightM + 0.04, eq.params.widthM + 0.14],
         center: [eq.params.lengthM / 2, eq.params.heightM / 2 + 0.02, 0],
       };
-    case 'source':
-      return { size: [0.6, 0.6, 0.5], center: [0.05, 0.3, 0] };
+    case 'source': {
+      const postH = Math.max(0, eq.transform.position[1] / eq.transform.scale);
+      const cw = Math.max(0.28, eq.params.workpiece.widthM + 0.08);
+      const h = 0.16 + (postH > 0.05 ? postH : 0.1);
+      return { size: [0.62, h, cw + 0.1], center: [-0.26, 0.16 - h / 2, 0] };
+    }
     case 'sensor':
-      return { size: [0.1, 0.22, W + 0.22], center: [0, 0.06, 0] };
+      return { size: [0.1, 0.24, W + 0.2], center: [0, 0.02, 0] };
     case 'stopper':
-      return { size: [0.1, 0.24, W + 0.18], center: [0, 0.03, 0] };
-    case 'inspection_station':
-      return { size: [0.22, 0.6, W + 0.3], center: [0, 0.27, 0] };
+      return { size: [0.1, 0.27, W + 0.2], center: [0.0, -0.02, 0.06] };
+    case 'inspection_station': {
+      const H = conv?.heightM ?? 0.8;
+      return { size: [0.2, H + 0.58, W + 0.44], center: [0, (0.58 - H) / 2, 0.045] };
+    }
     case 'generic':
       return { size: [0.34, 0.34, 0.34], center: [0, 0.15, 0] };
   }
@@ -95,9 +101,9 @@ function badgeY(eq: Equipment, glb?: GlbInfo | null): number {
     case 'conveyor':
       return eq.params.heightM + 0.35;
     case 'inspection_station':
-      return 0.8;
+      return 0.85;
     case 'source':
-      return 0.75;
+      return 0.4;
     case 'generic':
       return 0.5;
     default:

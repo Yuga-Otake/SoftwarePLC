@@ -1,10 +1,17 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { BoxGeometry, Mesh, MeshStandardMaterial } from 'three';
+import { InstancedMesh, Object3D } from 'three';
 import { conveyorPointToWorld } from '@core/ir/geometry';
 import type { Conveyor, LineIR, WorkpieceSpec } from '@core/ir';
 import { useLineStore } from '../store/lineStore';
 import { useSimStore } from '../store/simStore';
+import {
+  RESULT_COLORS,
+  cardboardGeometry,
+  cardboardMaterial,
+  stickerGeometry,
+  stickerMaterial,
+} from './builtin/workpieceAsset';
 
 const DEG = Math.PI / 180;
 const POOL = 96;
@@ -33,26 +40,25 @@ function specsByConveyor(ir: LineIR): Map<string, WorkpieceSpec> {
   return out;
 }
 
-/** シミュレーションのワークを描画。スナップショットは useFrame で直接読み、React を再描画しない */
+/**
+ * シミュレーションのワークを描画。段ボール箱 (InstancedMesh 1 本) + OK/NG ステッカー (InstancedMesh 1 本)。
+ * スナップショットは useFrame で直接読み、React を再描画しない。
+ */
 export function Workpieces() {
   const ir = useLineStore((s) => s.ir);
-  const refs = useRef<(Mesh | null)[]>([]);
-  const geo = useMemo(() => new BoxGeometry(1, 1, 1), []);
-  const mats = useMemo(
-    () => ({
-      pending: new MeshStandardMaterial({ color: '#c9a56e', roughness: 0.85, metalness: 0 }),
-      ok: new MeshStandardMaterial({ color: '#2fc77a', roughness: 0.6, metalness: 0.05 }),
-      ng: new MeshStandardMaterial({ color: '#ee4d4a', roughness: 0.6, metalness: 0.05 }),
-    }),
-    [],
-  );
-  useEffect(
-    () => () => {
-      geo.dispose();
-      Object.values(mats).forEach((m) => m.dispose());
-    },
-    [geo, mats],
-  );
+  const boxRef = useRef<InstancedMesh>(null);
+  const stkRef = useRef<InstancedMesh>(null);
+  const geoBox = useMemo(() => cardboardGeometry(), []);
+  const geoStk = useMemo(() => stickerGeometry(), []);
+  const dummy = useMemo(() => new Object3D(), []);
+  useEffect(() => {
+    // 初期化時に instanceColor を確保 (setColorAt で作られる)
+    for (const r of [boxRef.current, stkRef.current]) {
+      if (!r) continue;
+      r.count = 0;
+      r.frustumCulled = false;
+    }
+  }, []);
   const specs = useMemo(() => specsByConveyor(ir), [ir]);
   const convs = useMemo(() => {
     const m = new Map<string, Conveyor>();
@@ -61,42 +67,48 @@ export function Workpieces() {
   }, [ir]);
 
   useFrame(() => {
+    const box = boxRef.current;
+    const stk = stkRef.current;
+    if (!box || !stk) return;
     const snap = useSimStore.getState().snapshot;
     const list = snap?.workpieces ?? [];
-    for (let i = 0; i < POOL; i++) {
-      const mesh = refs.current[i];
-      if (!mesh) continue;
+    let n = 0;
+    for (let i = 0; i < list.length && n < POOL; i++) {
       const w = list[i];
-      const conv = w && convs.get(w.conveyorId);
-      if (!w || !conv) {
-        mesh.visible = false;
-        continue;
-      }
+      const conv = convs.get(w.conveyorId);
+      if (!conv) continue;
       const spec = specs.get(w.conveyorId) ?? FALLBACK;
       const k = conv.transform.scale;
       const p = conveyorPointToWorld(conv, w.offsetM);
-      mesh.visible = true;
-      mesh.position.set(p[0], p[1] + 0.004 + (spec.heightM * k) / 2, p[2]);
-      mesh.rotation.set(0, conv.transform.rotationYDeg * DEG, 0);
-      mesh.scale.set(spec.lengthM * k * 0.98, spec.heightM * k, spec.widthM * k * 0.98);
-      mesh.material = mats[w.result];
+      dummy.position.set(p[0], p[1] + 0.004 + (spec.heightM * k) / 2, p[2]);
+      dummy.rotation.set(0, conv.transform.rotationYDeg * DEG, 0);
+      dummy.scale.set(spec.lengthM * k * 0.98, spec.heightM * k, spec.widthM * k * 0.98);
+      dummy.updateMatrix();
+      box.setMatrixAt(n, dummy.matrix);
+      stk.setMatrixAt(n, dummy.matrix);
+      const c = RESULT_COLORS[w.result];
+      box.setColorAt(n, c.box);
+      stk.setColorAt(n, c.sticker);
+      n++;
     }
+    box.count = n;
+    stk.count = n;
+    box.instanceMatrix.needsUpdate = true;
+    stk.instanceMatrix.needsUpdate = true;
+    if (box.instanceColor) box.instanceColor.needsUpdate = true;
+    if (stk.instanceColor) stk.instanceColor.needsUpdate = true;
   });
 
   return (
     <group name="workpieces">
-      {Array.from({ length: POOL }, (_, i) => (
-        <mesh
-          key={i}
-          ref={(m) => {
-            refs.current[i] = m;
-          }}
-          geometry={geo}
-          material={mats.pending}
-          visible={false}
-          raycast={() => null}
-        />
-      ))}
+      <instancedMesh
+        ref={boxRef}
+        args={[geoBox, cardboardMaterial(), POOL]}
+        castShadow
+        receiveShadow
+        raycast={() => null}
+      />
+      <instancedMesh ref={stkRef} args={[geoStk, stickerMaterial(), POOL]} raycast={() => null} />
     </group>
   );
 }
