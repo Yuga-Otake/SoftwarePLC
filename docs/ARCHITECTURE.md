@@ -29,7 +29,7 @@
 | シミュレーション | **運動学ベース・自作**（物理エンジン不使用） | 決定的・高速・headlessで比較実行できる。ワーク位置＝「どのコンベヤの何m地点」 |
 | 制御ロジック | IR → **Control IR**（ステップシーケンス）をテンプレートで決定的に生成。**LLMは使わない** | 再現性と安全性。同じControl IRをST出力と解釈実行の両方に使い、表示STと動作の一致を保証 |
 | ST実行 | MVPではSTテキストをパースしない（Control IRを解釈実行） | STインタプリタは工数大。一致は生成元の共有で担保 |
-| AI | ブラウザからAnthropic APIを直接呼ぶ（キーはユーザーが入力しlocalStorage保存）＋キー無し用の**デモモード**（定型文のルールベース解釈） | サーバ不要。デモモードはUIに明示し、AIと偽らない |
+| AI | ブラウザからGemini API（generativelanguage.googleapis.com）を直接呼ぶ（キーはユーザーが入力しlocalStorage保存）＋キー無し用の**デモモード**（定型文のルールベース解釈） | サーバ不要。デモモードはUIに明示し、AIと偽らない |
 | AIの権限 | AIは **PatchOpの提案のみ**。zod検証→applyPatch→validateを通過した提案だけを変更カードで提示、適用は人 | AIの推定を確認可能に |
 | GLB保存 | IndexedDB（アセット）＋ localStorage（IR） | サーバ不要 |
 | テスト | vitest（core は Node で全テスト）＋ Playwright スモーク1本 | core が純TSなので速い |
@@ -54,7 +54,7 @@ src/core/            純TS。React/three 非依存。Nodeでテスト
   control/           generateControl, emitST, createController
   sim/               createSimulation (固定刻み・シード乱数・異常注入・メトリクス)
   compare/           runHeadless, compare
-  ai/                AIProvider (anthropic / demo), システムプロンプト, tool定義
+  ai/                AIProvider (gemini / demo), システムプロンプト, tool定義
 src/app/             React UI
   store/             zustand: ir, 履歴(undo), 選択, sim状態
   scene/             R3F: 設備メッシュ, ワーク, ギズモ, GLB

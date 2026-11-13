@@ -2,9 +2,9 @@ import { create } from 'zustand';
 import {
   AIError,
   checkProposal,
-  createAnthropicProvider,
   createDemoProvider,
-  DEFAULT_ANTHROPIC_MODEL,
+  createGeminiProvider,
+  DEFAULT_GEMINI_MODEL,
   proposeWithRetry,
 } from '@core/ai';
 import type { AIProvider, ChatTurn, IRChange, ValidationIssue } from '@core/contracts';
@@ -13,7 +13,8 @@ import { useLineStore } from './lineStore';
 import { useUiStore } from './uiStore';
 
 export const CHAT_KEY = 'cfb.chat.v1';
-export const API_KEY_KEY = 'cfb.apiKey';
+export const API_KEY_KEY = 'cfb.geminiKey';
+const OLD_API_KEY_KEY = 'cfb.apiKey'; // 旧 AI プロバイダ時代のキー。読み込み時に削除
 export const MODEL_KEY = 'cfb.model';
 const MESSAGE_CAP = 50;
 
@@ -115,7 +116,7 @@ interface ChatState {
 }
 
 export function makeProvider(apiKey: string, model: string): AIProvider {
-  return apiKey ? createAnthropicProvider({ apiKey, model: model.trim() || DEFAULT_ANTHROPIC_MODEL }) : createDemoProvider();
+  return apiKey ? createGeminiProvider({ apiKey, model: model.trim() || DEFAULT_GEMINI_MODEL }) : createDemoProvider();
 }
 
 const patchMsg = (id: string, patch: Partial<ProposalMessage>) =>
@@ -140,6 +141,8 @@ const sameAssumption = (a: AssumptionRef, b: AssumptionRef) =>
   a.id === b.id && a.equipmentId === b.equipmentId && a.path === b.path;
 
 export const useChatStore = create<ChatState>((set, get) => {
+  lsSet(OLD_API_KEY_KEY, null);
+  if (!(lsGet(MODEL_KEY) ?? 'gemini').startsWith('gemini')) lsSet(MODEL_KEY, null); // 旧モデル名を捨てる
   async function run(userId: string) {
     const { messages, apiKey, model } = get();
     const idx = messages.findIndex((m) => m.id === userId);
@@ -213,7 +216,7 @@ export const useChatStore = create<ChatState>((set, get) => {
     messages: loadMessages(),
     busy: false,
     apiKey: lsGet(API_KEY_KEY) ?? '',
-    model: lsGet(MODEL_KEY) || DEFAULT_ANTHROPIC_MODEL,
+    model: lsGet(MODEL_KEY) || DEFAULT_GEMINI_MODEL,
     settingsOpen: false,
     setSettingsOpen: (v) => set({ settingsOpen: v }),
     setApiKey: (k) => {
@@ -222,8 +225,8 @@ export const useChatStore = create<ChatState>((set, get) => {
       set({ apiKey: key });
     },
     setModel: (m) => {
-      const model = m.trim() || DEFAULT_ANTHROPIC_MODEL;
-      lsSet(MODEL_KEY, model === DEFAULT_ANTHROPIC_MODEL ? null : model);
+      const model = m.trim() || DEFAULT_GEMINI_MODEL;
+      lsSet(MODEL_KEY, model === DEFAULT_GEMINI_MODEL ? null : model);
       set({ model });
     },
 

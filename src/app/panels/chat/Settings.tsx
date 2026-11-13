@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { DEFAULT_ANTHROPIC_MODEL } from '@core/ai';
+import { DEFAULT_GEMINI_MODEL } from '@core/ai';
 import { useChatStore } from '../../store/chatStore';
 
 const mask = (k: string) => (k.length <= 8 ? '••••••••' : `${k.slice(0, 7)}…••••${k.slice(-4)}`);
@@ -24,7 +24,7 @@ export function Settings() {
   return (
     <div className="chat-settings">
       <label className="chat-label" htmlFor="chat-apikey">
-        Anthropic API キー
+        Gemini API キー
       </label>
       {apiKey && !replacing ? (
         <div className="chat-key-row">
@@ -53,7 +53,7 @@ export function Settings() {
             autoComplete="off"
             autoCapitalize="off"
             spellCheck={false}
-            placeholder="sk-ant-..."
+            placeholder="AIza..."
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && saveKey()}
@@ -83,7 +83,7 @@ export function Settings() {
           autoCapitalize="off"
           spellCheck={false}
           value={modelDraft}
-          placeholder={DEFAULT_ANTHROPIC_MODEL}
+          placeholder={DEFAULT_GEMINI_MODEL}
           onChange={(e) => setModelDraft(e.target.value)}
           onBlur={() => {
             st().setModel(modelDraft);
@@ -93,7 +93,7 @@ export function Settings() {
       </div>
 
       <p className="muted">
-        キーはこのブラウザの localStorage にだけ保存され、api.anthropic.com へ直接送信されます（このアプリのサーバは経由しません）。共有端末では使わないでください。キーを設定しない間はデモモード（定型文のみ）で動きます。
+        キーはこのブラウザの localStorage にだけ保存され、generativelanguage.googleapis.com へ直接送信されます（このアプリのサーバは経由しません）。キーは Google AI Studio（aistudio.google.com/apikey）で取得できます。共有端末では使わないでください。キーを設定しない間はデモモード（定型文のみ）で動きます。
       </p>
     </div>
   );

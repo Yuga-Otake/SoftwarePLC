@@ -8,8 +8,10 @@ import {
   AIError,
   SYSTEM_PROMPT,
   checkProposal,
-  createAnthropicProvider,
   createDemoProvider,
+  createGeminiProvider,
+  DEFAULT_GEMINI_MODEL,
+  PROPOSE_FUNCTION,
   proposeWithRetry,
 } from './index';
 
@@ -127,7 +129,7 @@ describe('デモプロバイダ', () => {
   it('未知の文は ops 空 + 例示', async () => {
     const p = await demo.propose({ ir: buildStandardLine(), history: [], message: '今日の天気は?' });
     expect(p.ops).toEqual([]);
-    expect(p.reply).toContain('APIキー');
+    expect(p.reply).toContain('Gemini の API キー');
     expect(p.reply.match(/^・/gm)!.length).toBeGreaterThanOrEqual(4);
   });
 
@@ -142,15 +144,16 @@ describe('デモプロバイダ', () => {
   });
 });
 
-/* ───────── Anthropic ───────── */
+/* ───────── Gemini ───────── */
 
-const okBody = (input: unknown, extra: Record<string, unknown> = {}) => ({
-  id: 'msg_1',
-  type: 'message',
-  role: 'assistant',
-  stop_reason: 'tool_use',
-  content: [{ type: 'tool_use', id: 'tu_1', name: 'propose_changes', input }],
-  ...extra,
+const okBody = (args: unknown, extra: Record<string, unknown> = {}) => ({
+  candidates: [
+    {
+      finishReason: 'STOP',
+      content: { role: 'model', parts: [{ functionCall: { name: 'propose_changes', args } }] },
+      ...extra,
+    },
+  ],
 });
 const mockFetch = (status: number, body: unknown) => {
   const calls: { url: string; init: RequestInit }[] = [];
@@ -161,13 +164,19 @@ const mockFetch = (status: number, body: unknown) => {
   return { fn, calls };
 };
 
-describe('Anthropic プロバイダ', () => {
+describe('Gemini プロバイダ', () => {
   const ir = buildStandardLine();
   const good = { reply: '速度を変更します', ops: [{ op: 'update', id: 'CV1', params: { speedMps: 0.3 } }] };
 
+  it('メタ情報', () => {
+    const p = createGeminiProvider({ apiKey: 'k' });
+    expect(p.id).toBe('gemini');
+    expect(p.label).toBe('Gemini');
+  });
+
   it('リクエスト形式とパース', async () => {
     const m = mockFetch(200, okBody(good));
-    const p = createAnthropicProvider({ apiKey: 'sk-ant-secret', fetchImpl: m.fn });
+    const p = createGeminiProvider({ apiKey: 'AIza-secret', fetchImpl: m.fn });
     const out = await p.propose({
       ir,
       history: [
@@ -180,30 +189,59 @@ describe('Anthropic プロバイダ', () => {
     expect(out).toEqual(good);
     expect(m.calls).toHaveLength(1);
     const { url, init } = m.calls[0];
-    expect(url).toBe('https://api.anthropic.com/v1/messages');
+    expect(url).toBe(`https://generativelanguage.googleapis.com/v1beta/models/${DEFAULT_GEMINI_MODEL}:generateContent`);
+    expect(url).not.toContain('AIza-secret');
+    expect(init.method).toBe('POST');
     const h = init.headers as Record<string, string>;
-    expect(h['x-api-key']).toBe('sk-ant-secret');
-    expect(h['anthropic-version']).toBe('2023-06-01');
-    expect(h['anthropic-dangerous-direct-browser-access']).toBe('true');
+    expect(h['x-goog-api-key']).toBe('AIza-secret');
     const body = JSON.parse(init.body as string);
-    expect(body.model).toBe('claude-sonnet-5-5');
-    expect(body.system).toBe(SYSTEM_PROMPT);
+    expect(body.systemInstruction.parts[0].text).toBe(SYSTEM_PROMPT);
     expect(body.tools).toHaveLength(1);
-    expect(body.tools[0].name).toBe('propose_changes');
-    expect(body.messages.map((x: any) => x.role)).toEqual(['user', 'assistant', 'user']);
-    const last = body.messages[2].content as string;
+    expect(body.tools[0].functionDeclarations).toHaveLength(1);
+    expect(body.tools[0].functionDeclarations[0].name).toBe('propose_changes');
+    expect(body.toolConfig.functionCallingConfig).toEqual({ mode: 'ANY', allowedFunctionNames: ['propose_changes'] });
+    expect(body.contents.map((x: any) => x.role)).toEqual(['user', 'model', 'user']);
+    expect(body.contents[1].parts[0].text).toBe('前の返答');
+    const last = body.contents[2].parts[0].text as string;
     expect(last).toContain(JSON.stringify(ir));
     expect(last).toContain('速くして');
-    expect(init.body as string).not.toContain('sk-ant-secret');
+    expect(init.body as string).not.toContain('AIza-secret');
   });
 
-  it('強制 tool_choice は対応モデルのみ。Sonnet 5.5 は auto', async () => {
-    const a = mockFetch(200, okBody(good));
-    await createAnthropicProvider({ apiKey: 'k', fetchImpl: a.fn }).propose({ ir, history: [], message: 'x' });
-    expect(JSON.parse(a.calls[0].init.body as string).tool_choice).toEqual({ type: 'auto' });
-    const b = mockFetch(200, okBody(good));
-    await createAnthropicProvider({ apiKey: 'k', model: 'claude-haiku-4-5', fetchImpl: b.fn }).propose({ ir, history: [], message: 'x' });
-    expect(JSON.parse(b.calls[0].init.body as string).tool_choice).toEqual({ type: 'tool', name: 'propose_changes' });
+  it('モデルは設定可能', async () => {
+    const m = mockFetch(200, okBody(good));
+    await createGeminiProvider({ apiKey: 'k', model: 'gemini-x', fetchImpl: m.fn }).propose({ ir, history: [], message: 'x' });
+    expect(m.calls[0].url).toContain('/models/gemini-x:generateContent');
+  });
+
+  it('関数宣言は union を使わない平らなスキーマ', () => {
+    expect(JSON.stringify(PROPOSE_FUNCTION)).not.toMatch(/anyOf|oneOf|"const"|additionalProperties/);
+  });
+
+  it('null / 空欄を落としてから検証する', async () => {
+    const messy = {
+      reply: 'OK',
+      ops: [
+        {
+          op: 'update',
+          id: 'CV1',
+          name: '',
+          params: { speedMps: 0.3, lengthM: null },
+          transform: null,
+          mount: {},
+          item: null,
+          kind: '',
+        },
+      ],
+    };
+    const p = createGeminiProvider({ apiKey: 'k', fetchImpl: mockFetch(200, okBody(messy)).fn });
+    const out = await p.propose({ ir, history: [], message: 'x' });
+    expect(out.ops).toEqual([{ op: 'update', id: 'CV1', params: { speedMps: 0.3 } }]);
+  });
+
+  it('ops 省略は空配列', async () => {
+    const p = createGeminiProvider({ apiKey: 'k', fetchImpl: mockFetch(200, okBody({ reply: '聞き返し' })).fn });
+    expect(await p.propose({ ir, history: [], message: 'x' })).toEqual({ reply: '聞き返し', ops: [] });
   });
 
   it('システムプロンプトに既定値が入る', () => {
@@ -219,7 +257,7 @@ describe('Anthropic プロバイダ', () => {
   });
 
   const kindOf = async (status: number, body: unknown) => {
-    const p = createAnthropicProvider({ apiKey: 'k', fetchImpl: mockFetch(status, body).fn });
+    const p = createGeminiProvider({ apiKey: 'k', fetchImpl: mockFetch(status, body).fn });
     try {
       await p.propose({ ir, history: [], message: 'x' });
     } catch (e) {
@@ -230,14 +268,21 @@ describe('Anthropic プロバイダ', () => {
   };
 
   it('エラー分類', async () => {
-    expect(await kindOf(401, { error: { message: 'invalid x-api-key' } })).toBe('auth');
+    expect(await kindOf(400, { error: { status: 'INVALID_ARGUMENT', message: 'API key not valid. Please pass a valid API key.' } })).toBe('auth');
+    expect(await kindOf(400, { error: { message: 'x', details: [{ reason: 'API_KEY_INVALID' }] } })).toBe('auth');
+    expect(await kindOf(400, { error: { status: 'INVALID_ARGUMENT', message: 'bad schema' } })).toBe('api');
+    expect(await kindOf(401, { error: { message: 'unauthenticated' } })).toBe('auth');
+    expect(await kindOf(403, { error: { message: 'denied' } })).toBe('auth');
     expect(await kindOf(429, { error: { message: 'slow down' } })).toBe('rate_limit');
     expect(await kindOf(500, { error: { message: 'oops' } })).toBe('api');
     expect(await kindOf(200, okBody({ reply: 'x', ops: [{ op: 'remove' }] }))).toBe('bad_output');
     expect(await kindOf(200, okBody({ ops: [] }))).toBe('bad_output');
-    expect(await kindOf(200, { stop_reason: 'end_turn', content: [{ type: 'text', text: 'hi' }] })).toBe('bad_output');
-    expect(await kindOf(200, { stop_reason: 'refusal', content: [] })).toBe('refusal');
-    const p = createAnthropicProvider({
+    expect(await kindOf(200, { candidates: [{ finishReason: 'STOP', content: { parts: [{ text: 'hi' }] } }] })).toBe('bad_output');
+    expect(await kindOf(200, { candidates: [] })).toBe('bad_output');
+    expect(await kindOf(200, okBody(good, { finishReason: 'MAX_TOKENS' }))).toBe('bad_output');
+    expect(await kindOf(200, { promptFeedback: { blockReason: 'SAFETY' } })).toBe('refusal');
+    expect(await kindOf(200, { candidates: [{ finishReason: 'SAFETY' }] })).toBe('refusal');
+    const p = createGeminiProvider({
       apiKey: 'k',
       fetchImpl: (async () => {
         throw new TypeError('fetch failed');
@@ -261,7 +306,7 @@ describe('checkProposal / proposeWithRetry', () => {
     expect(c.result.errors.length).toBeGreaterThan(0);
   });
 
-  const stub = (id: 'anthropic' | 'demo', replies: AIProposal[]) => {
+  const stub = (id: 'gemini' | 'demo', replies: AIProposal[]) => {
     const calls: { message: string; history: number }[] = [];
     const provider: AIProvider = {
       id,
@@ -274,22 +319,22 @@ describe('checkProposal / proposeWithRetry', () => {
     return { provider, calls };
   };
 
-  it('anthropic は 1 回だけ再試行してエラーを伝える', async () => {
-    const s = stub('anthropic', [badP, goodP]);
+  it('gemini は 1 回だけ再試行してエラーを伝える', async () => {
+    const s = stub('gemini', [badP, goodP]);
     const r = await proposeWithRetry(s.provider, { ir, history: [], message: '消して' });
     expect(s.calls).toHaveLength(2);
     expect(s.calls[1].message).toContain('NOPE');
     expect(s.calls[1].history).toBe(2);
     expect(r.proposal).toBe(goodP);
     expect(r.check.ok).toBe(true);
-    const s2 = stub('anthropic', [badP]);
+    const s2 = stub('gemini', [badP]);
     const r2 = await proposeWithRetry(s2.provider, { ir, history: [], message: '消して' });
     expect(s2.calls).toHaveLength(2);
     expect(r2.check.ok).toBe(false);
   });
 
   it('成功時・demo は再試行しない', async () => {
-    const s = stub('anthropic', [goodP]);
+    const s = stub('gemini', [goodP]);
     await proposeWithRetry(s.provider, { ir, history: [], message: 'x' });
     expect(s.calls).toHaveLength(1);
     const d = stub('demo', [badP]);

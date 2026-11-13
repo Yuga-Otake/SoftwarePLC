@@ -388,7 +388,7 @@ const FALLBACK = `デモモードでは、決まった言い回しだけ理解�
 ・NG率を20%にして
 ・センサを追加して
 ・検査ステーションをもう1台追加して
-APIキーを接続すると、自由な文章で依頼できます。`;
+Gemini の API キーを設定すると、自由な文章で依頼できます。`;
 
 export function createDemoProvider(): AIProvider {
   return {

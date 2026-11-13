@@ -31,7 +31,7 @@ function errorText(check: ProposalCheck): string {
   return lines.map((l) => `・${l}`).join('\n');
 }
 
-/** 提案 → 検査。anthropic のみ、失敗時に 1 回だけエラーを伝えて再提案を求める。最後の試行を返す */
+/** 提案 → 検査。gemini のみ、失敗時に 1 回だけエラーを伝えて再提案を求める。最後の試行を返す */
 export async function proposeWithRetry(
   provider: AIProvider,
   input: ProposeInput,
@@ -40,7 +40,7 @@ export async function proposeWithRetry(
   try {
     first = await provider.propose(input);
   } catch (e) {
-    if (provider.id === 'anthropic' && e instanceof AIError && e.kind === 'bad_output') {
+    if (provider.id === 'gemini' && e instanceof AIError && e.kind === 'bad_output') {
       const retry = await provider.propose({
         ...input,
         history: [...input.history, { role: 'user', text: input.message }, { role: 'assistant', text: '(出力形式が不正でした)' }],
@@ -51,7 +51,7 @@ export async function proposeWithRetry(
     throw e;
   }
   const check = checkProposal(input.ir, first);
-  if (check.ok || provider.id !== 'anthropic') return { proposal: first, check };
+  if (check.ok || provider.id !== 'gemini') return { proposal: first, check };
 
   const retry = await provider.propose({
     ir: input.ir,

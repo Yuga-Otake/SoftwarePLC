@@ -23,7 +23,7 @@ function ModeBar() {
         title="タップで設定"
       >
         <span className="dot" />
-        <span className="chat-mode-text">{hasKey ? 'AI: Claude' : 'デモモード（定型文のみ・AIではありません）'}</span>
+        <span className="chat-mode-text">{hasKey ? 'AI: Gemini' : 'デモモード（定型文のみ・AIではありません）'}</span>
         <span className="chat-gear" aria-hidden>
           ⚙
         </span>
