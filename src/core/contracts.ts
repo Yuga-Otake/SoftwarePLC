@@ -246,7 +246,7 @@ export interface AIProposal {
 }
 
 export interface AIProvider {
-  readonly id: 'anthropic' | 'demo';
+  readonly id: 'gemini' | 'demo';
   readonly label: string;
   propose(input: { ir: LineIR; history: ChatTurn[]; message: string }): Promise<AIProposal>;
 }
